@@ -329,6 +329,43 @@ def fetch_tencent_klines(tx_codes):
     return out, qout
 
 
+def fetch_em_klines(codes):
+    """东方财富日K线兜底：补齐腾讯因单IP额度（约9个/运行）未取到的指数。
+
+    返回 {原始指数code: compute_technicals结果}。腾讯能稳定拿到约9个，
+    其余 ~21 个由东方财富补齐，从而把技术面覆盖拉到 30/30。
+    """
+    out = {}
+    for code in codes:
+        node = None
+        for secid in _em_secids(code):
+            url = ("https://push2his.eastmoney.com/api/qt/stock/kline/get"
+                   "?fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56,f57,f58"
+                   "&ut=fa5fd1943c7b386f172d6893dbfba10b&klt=101&fqt=1"
+                   f"&secid={secid}&beg=0&end=20500101&lmt=320")
+            try:
+                r = requests.get(url, headers=EM_H, timeout=10)
+                d = r.json().get("data")
+                if d and d.get("klines"):
+                    node = d
+                    break
+            except Exception:
+                pass
+            time.sleep(0.4)
+        if node and node.get("klines"):
+            rows = []
+            for kl in node["klines"]:
+                p = kl.split(",")
+                if len(p) >= 6:  # [date, open, close, high, low, volume, ...]
+                    rows.append([p[0], p[1], p[2], p[3], p[4], p[5]])
+            tech = compute_technicals(rows)
+            if tech:
+                out[code] = tech
+        time.sleep(0.4)  # 礼貌间隔，避免触发东财限流
+    print(f"  东方财富K线兜底: {len(out)}/{len(codes)}")
+    return out
+
+
 # ============================================================
 # 4. 新浪行业板块 + 腾讯新闻
 # ============================================================
@@ -422,6 +459,23 @@ def fetch_all(indices, etf_map, sector_map=None):
             quote[wcode]["chg_60d"] = k["chg_60d"]
             quote[wcode]["chg_ytd"] = k["chg_ytd"]
             quote[wcode]["chg_250d"] = k["chg_250d"]
+
+    # --- 2.5 东方财富 K线兜底：腾讯单IP额度仅~9个/运行，缺口用东财补齐 ---
+    kline_wcodes = {tx_to_wcode[tc] for tc in tx_klines}
+    missing = [idx for idx in indices if idx["wcode"] not in kline_wcodes]
+    if missing:
+        em_klines = fetch_em_klines([idx["code"] for idx in missing])
+        code_to_wcode = {idx["code"]: idx["wcode"] for idx in missing}
+        for code, k in em_klines.items():
+            wcode = code_to_wcode.get(code)
+            if wcode and k:
+                quote[wcode].update(k)
+                quote[wcode]["has_kline"] = True
+                quote[wcode]["chg_5d"] = k["chg_5d"]
+                quote[wcode]["chg_20d"] = k["chg_20d"]
+                quote[wcode]["chg_60d"] = k["chg_60d"]
+                quote[wcode]["chg_ytd"] = k["chg_ytd"]
+                quote[wcode]["chg_250d"] = k["chg_250d"]
 
     # --- 3. ETF 行情 + 资金流 ---
     etf_codes = list(dict.fromkeys(etf_map.values()))  # 去重保序
