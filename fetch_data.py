@@ -13,6 +13,7 @@ import json
 import math
 import re
 import time
+import random
 import statistics
 import requests
 
@@ -23,7 +24,8 @@ TENCENT_H = {
 
 # 腾讯行情/ K线 共享同一 IP 限流预算；请求过快会被整体掐断。
 # 用全局节流器让每次腾讯请求前都间隔 _TX_GAP 秒，保证单次运行稳定落在阈值内。
-_TX_GAP = 0.8
+# 1.5s 已能规避绝大多数突发限流；指数 K 线另用更大间隔 + 退避重试（见 fetch_tencent_klines）。
+_TX_GAP = 1.5
 _TX_LAST = [0.0]
 def _tget(url, timeout=10, max_retry=3):
     """带节流 + 重试的腾讯 GET；返回 (text, ok)"""
@@ -271,16 +273,24 @@ def compute_technicals(rows):
 def fetch_tencent_klines(tx_codes):
     """获取日K线并计算技术指标；返回 (klines, quotes)。
 
-    - 通过 _tget 节流 + 重试，抵抗腾讯对 web.ifzq.gtimg.cn 的突发限流；
-      cs 前缀的中证指数同样适用。
+    - 腾讯对 web.ifzq.gtimg.cn 的 K 线接口有突发额度（约 9 个/窗口），超限后返回
+      200 但空/none_match。因此这里用「较大基础间隔 + 空响应递增退避重试」：
+      基础间隔规避突发，命中限流时退避等待窗口解除后再取，确保覆盖率。
+    - cs 前缀的中证指数同样适用。
     - K线响应自带 qt 行情节点（与 qt.gtimg.cn 同源同格式），一并解析为
       指数行情，省去一次独立的指数行情请求，降低整体请求量。
     """
     out = {}
     qout = {}
+    _KL_GAP = 5.0                      # 指数间基础间隔（秒），规避突发额度
+    _KL_BACKOFF = [6, 12, 20, 35, 60]  # 空响应(疑似限流)时递增退避（秒）
     for code in tx_codes:
         node = None
-        for attempt in range(3):
+        for attempt in range(1 + len(_KL_BACKOFF)):
+            # 基础间隔（与全局 _TX_GAP 取较大者，叠加生效）
+            wait = _KL_GAP - (time.time() - _TX_LAST[0])
+            if wait > 0:
+                time.sleep(wait)
             url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,320,qfq"
             text, ok = _tget(url, timeout=10)
             if ok:
@@ -289,8 +299,12 @@ def fetch_tencent_klines(tx_codes):
                     if node:
                         break
                 except Exception:
-                    pass
-            time.sleep(1.0 * (attempt + 1))
+                    node = None
+            # 空响应 / 限流 → 递增退避后重试（带抖动避免同步）
+            if attempt < len(_KL_BACKOFF):
+                time.sleep(_KL_BACKOFF[attempt] + random.uniform(0, 1.0))
+            else:
+                break
         kl = (node or {}).get("qfqday") or (node or {}).get("day") or []
         if kl:
             out[code] = compute_technicals(kl)
