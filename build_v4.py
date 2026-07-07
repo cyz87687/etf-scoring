@@ -19,6 +19,25 @@ import pandas as pd
 import fetch_data  # 数据层(单一来源驱动)
 
 USE_API = "--api" in sys.argv
+# CI matrix 分片抓取后合并的 K线结果文件(绕过腾讯单IP额度)
+KLINES_FILE = None
+for _a in sys.argv:
+    if _a.startswith("--klines="):
+        KLINES_FILE = _a[len("--klines="):]
+        break
+
+
+def _load_klines():
+    """加载 CI matrix 合并后的 K线结果 {原code: {技术因子+行情}}。"""
+    if not KLINES_FILE:
+        return None
+    try:
+        with open(KLINES_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[warn] 加载 klines 文件失败({KLINES_FILE}): {e}")
+        return None
+
 
 NOW = datetime.now().strftime("%Y-%m-%d %H:%M")
 
@@ -144,7 +163,7 @@ print("=" * 60)
 if USE_API:
     print("\n[API模式] 使用纯API获取数据(配置来自 Excel)...")
     import fetch_data
-    quote, etf, board, news, hot, coverage = fetch_data.fetch_all(INDICES, ETF_MAP)
+    quote, etf, board, news, hot, coverage = fetch_data.fetch_all(INDICES, ETF_MAP, ext_klines=_load_klines() if KLINES_FILE else None)
 else:
     # 本地 westock 模式: 读本地 westock 导出文本；缺失则自动回退 API
     import fetch_data
@@ -153,7 +172,7 @@ else:
         quote, etf, board, news, hot, coverage = _load_westock(_paths)
     else:
         print("\n[回退] 未发现 westock 导出，自动切换 API 模式...")
-        quote, etf, board, news, hot, coverage = fetch_data.fetch_all(INDICES, ETF_MAP)
+        quote, etf, board, news, hot, coverage = fetch_data.fetch_all(INDICES, ETF_MAP, ext_klines=_load_klines() if KLINES_FILE else None)
 
 
 # ============================================================

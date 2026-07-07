@@ -16,37 +16,104 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  # 1) 读取指数列表并切分为多个分片(每个分片 ≤4 个，规避腾讯单IP K线额度)
+  prep:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.chunks.outputs.matrix }}
     steps:
-      - name: 检出仓库
-        uses: actions/checkout@v4
-
-      - name: 配置 Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: 安装依赖
+        run: pip install pandas openpyxl
+      - name: 切分指数列表
+        id: chunks
         run: |
-          python -m pip install --upgrade pip
-          pip install pandas openpyxl requests
+          python - <<'PY'
+          import json, os, pandas as pd
+          df = pd.read_excel("指数数据.xlsx")
+          codes = [str(c).split(".")[0].strip() for c in df["证券代码"].tolist()]
+          CHUNK = 4
+          chunks = [codes[i:i+CHUNK] for i in range(0, len(codes), CHUNK)]
+          os.makedirs("chunks", exist_ok=True)
+          for i, ch in enumerate(chunks):
+              json.dump(ch, open(f"chunks/chunk_{i}.json", "w"), ensure_ascii=False)
+          # matrix 输出为分片索引列表
+          print("matrix=" + json.dumps(list(range(len(chunks)))))
+          print("总指数:", len(codes), "| 分片数:", len(chunks))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chunks
+          path: chunks/
 
-      - name: 运行评分模型（纯 API 模式）
-        run: python build_v4.py --api
+  # 2) 每个分片在独立 runner IP 上抓取腾讯K线(各 ≤4，远低于单IP上限 ~9)
+  fetch:
+    needs: prep
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        chunk: ${{ fromJson(needs.prep.outputs.matrix) }}
+      max-parallel: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 安装依赖
+        run: pip install requests
+      - name: 下载本分片
+        uses: actions/download-artifact@v4
+        with:
+          name: chunks
+          path: chunks/
+      - name: 抓取本分片K线
+        run: python fetch_klines.py chunks/chunk_${{ matrix.chunk }}.json klines_${{ matrix.chunk }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: klines-${{ matrix.chunk }}
+          path: klines_${{ matrix.chunk }}.json
 
+  # 3) 合并所有分片K线，运行评分模型并部署 Pages
+  build:
+    needs: fetch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 安装依赖
+        run: pip install pandas openpyxl requests
+      - name: 下载所有分片K线并合并
+        uses: actions/download-artifact@v4
+        with:
+          pattern: klines-*
+          path: klines_raw/
+          merge-multiple: false
+      - name: 合并为单一 klines.json
+        run: |
+          python - <<'PY'
+          import json, glob, os
+          out = {}
+          for fp in glob.glob("klines_raw/**/klines_*.json", recursive=True):
+              out.update(json.load(open(fp, encoding="utf-8")))
+          json.dump(out, open("klines.json", "w", encoding="utf-8"), ensure_ascii=False)
+          print("合并 K线:", len(out), "条")
+          PY
+      - name: 运行评分模型（K线来自分片合并，绕过腾讯单IP额度）
+        run: python build_v4.py --api --klines klines.json
       - name: 校验产物
         run: |
           test -f index_v5.html && test -f v5_data.json || (echo "产物缺失" && exit 1)
           echo "HTML 大小: $(wc -c < index_v5.html) 字节"
-
       - name: 准备 Pages 产物
         run: |
           mkdir -p _site
           cp index_v5.html v5_data.json _site/
-          # 一并携带评分体系文档，便于阅读
           cp "指数四维精简量化评分体系.md" _site/ 2>/dev/null || true
-
       - name: 上传 Pages 产物
         uses: actions/upload-pages-artifact@v3
         with:

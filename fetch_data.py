@@ -408,7 +408,7 @@ def fetch_news():
 # ============================================================
 # 主入口: 配置驱动，返回与 build 兼容的数据结构
 # ============================================================
-def fetch_all(indices, etf_map, sector_map=None):
+def fetch_all(indices, etf_map, sector_map=None, ext_klines=None):
     """
     参数:
       indices: [{"code","name","wcode",...}]  (来自 build 读取 Excel)
@@ -428,7 +428,7 @@ def fetch_all(indices, etf_map, sector_map=None):
                                                    "chg_60d", "chg_ytd")})
             quote[wcode]["has_valuation"] = True
 
-    # --- 2. 腾讯指数行情 + K线（合并请求：K线响应自带 qt 行情节点）---
+    # --- 2. 指数行情 + K线 ---
     idx_tx_codes = []
     tx_to_wcode = {}
     for idx in indices:
@@ -436,46 +436,69 @@ def fetch_all(indices, etf_map, sector_map=None):
         if tc:
             idx_tx_codes.append(tc)
             tx_to_wcode[tc] = idx["wcode"]
-    # 一次 K线请求同时拿到行情(qt节点)与技术指标，省去独立指数行情请求
-    tx_klines, tx_quotes = fetch_tencent_klines(idx_tx_codes)
-    for tc, wcode in tx_to_wcode.items():
-        q = tx_quotes.get(tc, {})
-        if q.get("change_pct") is not None:
-            quote[wcode]["change_pct"] = q["change_pct"]
-        if q.get("turnover_rate"):
-            quote[wcode]["turnover_rate"] = q["turnover_rate"]
-        if q.get("volume_ratio"):
-            quote[wcode]["volume_ratio"] = q["volume_ratio"]
-        if q.get("pe_ratio") and not quote[wcode]["pe_ratio"]:
-            quote[wcode]["pe_ratio"] = q["pe_ratio"]
-            quote[wcode]["has_valuation"] = True
-        k = tx_klines.get(tc)
-        if k:
-            quote[wcode].update(k)
-            quote[wcode]["has_kline"] = True
-            # K线多期收益优先（比东财更全）
-            quote[wcode]["chg_5d"] = k["chg_5d"]
-            quote[wcode]["chg_20d"] = k["chg_20d"]
-            quote[wcode]["chg_60d"] = k["chg_60d"]
-            quote[wcode]["chg_ytd"] = k["chg_ytd"]
-            quote[wcode]["chg_250d"] = k["chg_250d"]
 
-    # --- 2.5 东方财富 K线兜底：腾讯单IP额度仅~9个/运行，缺口用东财补齐 ---
-    kline_wcodes = {tx_to_wcode[tc] for tc in tx_klines}
-    missing = [idx for idx in indices if idx["wcode"] not in kline_wcodes]
-    if missing:
-        em_klines = fetch_em_klines([idx["code"] for idx in missing])
-        code_to_wcode = {idx["code"]: idx["wcode"] for idx in missing}
-        for code, k in em_klines.items():
-            wcode = code_to_wcode.get(code)
-            if wcode and k:
+    if ext_klines:
+        # CI matrix 分片抓取结果（已绕过腾讯单IP额度）: {原code: {技术因子+行情}}
+        for idx in indices:
+            rec = ext_klines.get(idx["code"])
+            if not rec:
+                continue
+            wcode = idx["wcode"]
+            if rec.get("change_pct") is not None:
+                quote[wcode]["change_pct"] = rec.get("change_pct", 0)
+            if rec.get("turnover_rate"):
+                quote[wcode]["turnover_rate"] = rec.get("turnover_rate", 0)
+            if rec.get("volume_ratio"):
+                quote[wcode]["volume_ratio"] = rec.get("volume_ratio", 0)
+            if rec.get("pe_ratio") and not quote[wcode]["pe_ratio"]:
+                quote[wcode]["pe_ratio"] = rec["pe_ratio"]
+                quote[wcode]["has_valuation"] = True
+            if rec.get("rsi14") is not None or rec.get("pct120") is not None:
+                quote[wcode].update({k: rec[k] for k in
+                    ("chg_5d", "chg_20d", "chg_60d", "chg_ytd", "chg_250d",
+                     "rsi14", "vol20", "mom60", "pct120", "swing", "vp10") if k in rec})
+                quote[wcode]["has_kline"] = True
+    else:
+        # 一次 K线请求同时拿到行情(qt节点)与技术指标，省去独立指数行情请求
+        tx_klines, tx_quotes = fetch_tencent_klines(idx_tx_codes)
+        for tc, wcode in tx_to_wcode.items():
+            q = tx_quotes.get(tc, {})
+            if q.get("change_pct") is not None:
+                quote[wcode]["change_pct"] = q["change_pct"]
+            if q.get("turnover_rate"):
+                quote[wcode]["turnover_rate"] = q["turnover_rate"]
+            if q.get("volume_ratio"):
+                quote[wcode]["volume_ratio"] = q["volume_ratio"]
+            if q.get("pe_ratio") and not quote[wcode]["pe_ratio"]:
+                quote[wcode]["pe_ratio"] = q["pe_ratio"]
+                quote[wcode]["has_valuation"] = True
+            k = tx_klines.get(tc)
+            if k:
                 quote[wcode].update(k)
                 quote[wcode]["has_kline"] = True
+                # K线多期收益优先（比东财更全）
                 quote[wcode]["chg_5d"] = k["chg_5d"]
                 quote[wcode]["chg_20d"] = k["chg_20d"]
                 quote[wcode]["chg_60d"] = k["chg_60d"]
                 quote[wcode]["chg_ytd"] = k["chg_ytd"]
                 quote[wcode]["chg_250d"] = k["chg_250d"]
+
+        # --- 2.5 东方财富 K线兜底：腾讯单IP额度仅~9个/运行，缺口用东财补齐 ---
+        kline_wcodes = {tx_to_wcode[tc] for tc in tx_klines}
+        missing = [idx for idx in indices if idx["wcode"] not in kline_wcodes]
+        if missing:
+            em_klines = fetch_em_klines([idx["code"] for idx in missing])
+            code_to_wcode = {idx["code"]: idx["wcode"] for idx in missing}
+            for code, k in em_klines.items():
+                wcode = code_to_wcode.get(code)
+                if wcode and k:
+                    quote[wcode].update(k)
+                    quote[wcode]["has_kline"] = True
+                    quote[wcode]["chg_5d"] = k["chg_5d"]
+                    quote[wcode]["chg_20d"] = k["chg_20d"]
+                    quote[wcode]["chg_60d"] = k["chg_60d"]
+                    quote[wcode]["chg_ytd"] = k["chg_ytd"]
+                    quote[wcode]["chg_250d"] = k["chg_250d"]
 
     # --- 3. ETF 行情 + 资金流 ---
     etf_codes = list(dict.fromkeys(etf_map.values()))  # 去重保序
