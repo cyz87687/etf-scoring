@@ -20,9 +20,14 @@ import fetch_data  # 数据层(单一来源驱动)
 
 USE_API = "--api" in sys.argv
 # CI matrix 分片抓取后合并的 K线结果文件(绕过腾讯单IP额度)
+# 支持 --klines klines.json 与 --klines=klines.json 两种写法
 KLINES_FILE = None
-for _a in sys.argv:
-    if _a.startswith("--klines="):
+for _i, _a in enumerate(sys.argv):
+    if _a == "--klines":
+        if _i + 1 < len(sys.argv):
+            KLINES_FILE = sys.argv[_i + 1]
+            break
+    elif _a.startswith("--klines="):
         KLINES_FILE = _a[len("--klines="):]
         break
 
