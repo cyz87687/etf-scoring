@@ -31,7 +31,7 @@ jobs:
       - name: 切分指数列表
         id: chunks
         run: |
-          python - <<'PY'
+          MATRIX=$(python - <<'PY'
           import json, os, pandas as pd
           df = pd.read_excel("指数数据.xlsx")
           codes = [str(c).split(".")[0].strip() for c in df["证券代码"].tolist()]
@@ -40,10 +40,12 @@ jobs:
           os.makedirs("chunks", exist_ok=True)
           for i, ch in enumerate(chunks):
               json.dump(ch, open(f"chunks/chunk_{i}.json", "w"), ensure_ascii=False)
-          # matrix 输出为分片索引列表
-          print("matrix=" + json.dumps(list(range(len(chunks)))))
-          print("总指数:", len(codes), "| 分片数:", len(chunks))
+          # 输出为分片索引列表(JSON)
+          print(json.dumps(list(range(len(chunks)))))
           PY
+          )
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "分片索引: $MATRIX"
       - uses: actions/upload-artifact@v4
         with:
           name: chunks
