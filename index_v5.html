@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>指数四维精简量化评分体系 V5</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background:#f5f6fa; color:#2c3e50; }
+.header { background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); color:white; padding: 30px 40px; text-align:center; }
+.header h1 { font-size:24px; margin-bottom:8px; letter-spacing:1px; }
+.header .sub { font-size:13px; opacity:.8; margin-bottom:12px; }
+.badge-row { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; }
+.badge { display:inline-flex; align-items:center; gap:5px; padding:4px 14px; border-radius:12px; font-size:11px; font-weight:600; }
+.badge-A { background:rgba(39,174,96,.25); color:#a3f5bf; } .badge-B { background:rgba(41,128,185,.25); color:#85c1e9; } .badge-C { background:rgba(243,156,18,.25); color:#f9e79f; } .badge-S { background:rgba(142,68,173,.25); color:#d7bde2; }
+.conf-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:3px; }
+
+.tabs { display:flex; gap:4px; padding:14px 24px; background:white; border-bottom:1px solid #eee; flex-wrap:wrap; }
+.tab { padding:8px 20px; border-radius:20px; cursor:pointer; font-size:13px; border:1px solid #ddd; background:white; transition:.2s; }
+.tab:hover { background:#eef2ff; }
+.tab.active { background:#0f3460; color:white; border-color:#0f3460; }
+.content { max-width:1400px; margin:20px auto; padding:0 20px; }
+.panel { display:none; }
+.panel.active { display:block; }
+
+.summary-cards { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+.summary-card { background:white; border-radius:12px; padding:18px 22px; flex:1; min-width:160px; box-shadow:0 2px 8px rgba(0,0,0,.06); text-align:center; }
+.summary-card .label { font-size:11px; color:#999; margin-bottom:4px; }
+.summary-card .value { font-size:26px; font-weight:700; }
+.summary-card .sub { font-size:11px; color:#888; margin-top:3px; }
+
+.table-container { background:white; border-radius:12px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,.06); overflow-x:auto; margin-bottom:20px; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th { background:#f8f9fa; padding:10px 6px; text-align:center; font-weight:600; color:#555; border-bottom:2px solid #e9ecef; white-space:nowrap; position:sticky; top:0; }
+td { padding:8px 6px; text-align:center; border-bottom:1px solid #f0f0f0; }
+tr:hover { background:#f8faff; }
+.score-cell { font-weight:600; font-size:12px; cursor:pointer; }
+.score-cell:hover { text-decoration:underline; }
+.grade-tag { display:inline-flex; align-items:center; gap:4px; padding:4px 12px; border-radius:14px; font-size:11px; font-weight:700; color:white; white-space:nowrap; letter-spacing:.5px; box-shadow:0 1px 4px rgba(0,0,0,.15); }
+.grade-excellent { background:linear-gradient(135deg,#27ae60,#2ecc71); }
+.grade-bullish { background:linear-gradient(135deg,#2980b9,#3498db); }
+.grade-neutral { background:linear-gradient(135deg,#f39c12,#f1c40f); }
+.grade-cautious { background:linear-gradient(135deg,#e67e22,#f39c12); }
+.grade-avoid { background:linear-gradient(135deg,#e74c3c,#c0392b); }
+.red { color:#e74c3c; } .green { color:#27ae60; }
+.name-cell { text-align:left; font-weight:600; white-space:nowrap; }
+.code-cell { font-size:10px; color:#999; }
+.reason { font-size:10px; color:#888; text-align:left; max-width:200px; white-space:normal; line-height:1.4; }
+.src-tag { display:inline-block; padding:1px 6px; border-radius:6px; font-size:9px; font-weight:600; }
+.src-A { background:#d4edda; color:#155724; } .src-B { background:#d1ecf1; color:#0c5460; } .src-C { background:#fff3cd; color:#856404; }
+
+.modal-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.45); z-index:999; justify-content:center; align-items:center; }
+.modal-overlay.show { display:flex; }
+.modal { background:white; border-radius:16px; padding:28px; max-width:620px; width:92%; max-height:82vh; overflow-y:auto; box-shadow:0 10px 40px rgba(0,0,0,.2); }
+.modal h3 { font-size:18px; margin-bottom:4px; }
+.modal .subtitle { font-size:12px; color:#888; margin-bottom:18px; }
+.modal .score-big { font-size:42px; font-weight:700; margin:8px 0; }
+.modal .item { padding:8px 0; border-bottom:1px solid #f5f5f5; font-size:12px; line-height:1.7; }
+.modal .item:last-child { border-bottom:none; }
+.modal-close { float:right; cursor:pointer; font-size:22px; color:#999; background:none; border:none; }
+.modal-close:hover { color:#333; }
+
+.method-box { background:white; border-radius:12px; padding:24px; box-shadow:0 2px 8px rgba(0,0,0,.06); margin-bottom:20px; }
+.method-box h3 { font-size:17px; margin-bottom:14px; border-bottom:2px solid #0f3460; padding-bottom:8px; display:inline-block; }
+.method-box td { font-size:11px; padding:6px 10px; }
+.method-box td:first-child { font-weight:600; text-align:left; }
+
+.audit-box { background:linear-gradient(135deg, #fff3cd, #fff8e1); border-left:4px solid #f39c12; border-radius:10px; padding:16px 20px; margin:14px 0; font-size:12px; }
+.audit-box h4 { color:#856404; margin-bottom:8px; font-size:14px; }
+.audit-box ul { margin-left:18px; }
+.audit-box li { margin:4px 0; line-height:1.7; }
+
+.bar-cell { display:flex; align-items:center; gap:4px; justify-content:center; }
+.bar { height:8px; border-radius:4px; min-width:2px; transition:width .3s; }
+.bar-quality { background:linear-gradient(90deg,#27ae60,#2ecc71); }
+.bar-tech { background:linear-gradient(90deg,#2980b9,#3498db); }
+.bar-news { background:linear-gradient(90deg,#f39c12,#f1c40f); }
+.bar-capital { background:linear-gradient(90deg,#8e44ad,#9b59b6); }
+
+footer { text-align:center; padding:30px; color:#aaa; font-size:11px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>指数四维精简量化评分体系 V5</h1>
+  <div class="sub">对齐《指数四维精简量化评分体系（可落地·API适配）》· 0-10分制 · 2026-07-07T10:37</div>
+  <div class="badge-row">
+    <span class="badge badge-A"><span style="color:#27ae60">●</span> A级置信度: PE/PB/PS/股息率/60日动量/量比/ETF申赎/份额变化</span>
+    <span class="badge badge-B"><span style="color:#2980b9">●</span> B级置信度: 板块资金/换手率/新闻/ETF涨跌(代理指标)</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('ranking',event)">📊 综合排名</div>
+  <div class="tab" onclick="switchTab('factors',event)">📈 因子拆解</div>
+  <div class="tab" onclick="switchTab('audit',event)">🔍 数据溯源</div>
+  <div class="tab" onclick="switchTab('method',event)">📐 方法论</div>
+</div>
+
+<div class="content">
+
+<!-- Panel 1: Ranking -->
+<div class="panel active" id="panel-ranking">
+<div class="summary-cards">
+  <div class="summary-card"><div class="label">评级分布</div><div class="value" style="font-size:13px;line-height:2"><span class="grade-tag grade-neutral" style="margin:2px">🟡 均衡观望 15</span> <span class="grade-tag grade-cautious" style="margin:2px">🟠 谨慎规避 15</span> </div></div>
+  <div class="summary-card"><div class="label">平均总分</div><div class="value">5.0</div><div class="sub">/10</div></div>
+  <div class="summary-card"><div class="label">🏆 TOP1</div><div class="value" style="font-size:18px">中证煤炭</div><div class="sub"><span class="grade-tag grade-neutral" style="font-size:10px;padding:2px 8px">5.78分 · 均衡观望</span></div></div>
+  <div class="summary-card"><div class="label">评分体系</div><div class="value" style="font-size:18px">0-10</div><div class="sub">四维等权25%</div></div>
+</div>
+
+<div class="table-container">
+<table>
+<thead><tr>
+<th>#</th><th>指数名称</th><th>代码</th>
+<th>质量<div style="font-size:9px;color:#27ae60">25%</div></th>
+<th>资金面<div style="font-size:9px;color:#8e44ad">25%</div></th>
+<th>技术面<div style="font-size:9px;color:#2980b9">25%</div></th>
+<th>消息面<div style="font-size:9px;color:#f39c12">25%</div></th>
+<th>总分</th><th>评级</th><th>核心理由</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>1</td>
+<td class="name-cell">中证煤炭</td>
+<td class="code-cell">399998</td>
+<td><span class="score-cell" onclick="showDetail(0)">6.2</span><div class="bar-cell"><div class="bar" style="width:49.36px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(0)">3.8</span><div class="bar-cell"><div class="bar" style="width:30.64px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(0)">6.7</span><div class="bar-cell"><div class="bar" style="width:53.36px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(0)">6.4</span><div class="bar-cell"><div class="bar" style="width:51.52px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.8</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>2</td>
+<td class="name-cell">通信设备</td>
+<td class="code-cell">931160</td>
+<td><span class="score-cell" onclick="showDetail(1)">3.9</span><div class="bar-cell"><div class="bar" style="width:31.36px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(1)">5.8</span><div class="bar-cell"><div class="bar" style="width:46.56px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(1)">6.5</span><div class="bar-cell"><div class="bar" style="width:52.400000000000006px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(1)">6.7</span><div class="bar-cell"><div class="bar" style="width:53.36px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.7</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>3</td>
+<td class="name-cell">中证旅游</td>
+<td class="code-cell">930633</td>
+<td><span class="score-cell" onclick="showDetail(2)">4.0</span><div class="bar-cell"><div class="bar" style="width:32.08px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(2)">5.7</span><div class="bar-cell"><div class="bar" style="width:45.84px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(2)">6.4</span><div class="bar-cell"><div class="bar" style="width:51.52px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(2)">6.5</span><div class="bar-cell"><div class="bar" style="width:52.400000000000006px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.7</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>4</td>
+<td class="name-cell">动漫游戏</td>
+<td class="code-cell">930901</td>
+<td><span class="score-cell" onclick="showDetail(3)">4.3</span><div class="bar-cell"><div class="bar" style="width:34.16px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(3)">6.1</span><div class="bar-cell"><div class="bar" style="width:48.64px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(3)">6.1</span><div class="bar-cell"><div class="bar" style="width:48.72px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(3)">6.1</span><div class="bar-cell"><div class="bar" style="width:48.72px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.6</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>5</td>
+<td class="name-cell">云计算</td>
+<td class="code-cell">930851</td>
+<td><span class="score-cell" onclick="showDetail(4)">4.2</span><div class="bar-cell"><div class="bar" style="width:33.44px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(4)">5.9</span><div class="bar-cell"><div class="bar" style="width:47.2px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(4)">6.2</span><div class="bar-cell"><div class="bar" style="width:49.68px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(4)">6.2</span><div class="bar-cell"><div class="bar" style="width:49.68px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.6</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>6</td>
+<td class="name-cell">800能源</td>
+<td class="code-cell">000928</td>
+<td><span class="score-cell" onclick="showDetail(5)">4.1</span><div class="bar-cell"><div class="bar" style="width:32.72px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(5)">5.7</span><div class="bar-cell"><div class="bar" style="width:45.2px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(5)">6.3</span><div class="bar-cell"><div class="bar" style="width:50.56px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(5)">6.3</span><div class="bar-cell"><div class="bar" style="width:50.56px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.6</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>7</td>
+<td class="name-cell">中证2000</td>
+<td class="code-cell">932000</td>
+<td><span class="score-cell" onclick="showDetail(6)">4.5</span><div class="bar-cell"><div class="bar" style="width:36.24px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(6)">6.2</span><div class="bar-cell"><div class="bar" style="width:49.36px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(6)">5.9</span><div class="bar-cell"><div class="bar" style="width:46.88000000000001px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(6)">5.6</span><div class="bar-cell"><div class="bar" style="width:45.03999999999999px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.5</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>8</td>
+<td class="name-cell">中证全指电力指数</td>
+<td class="code-cell">H30199</td>
+<td><span class="score-cell" onclick="showDetail(7)">4.4</span><div class="bar-cell"><div class="bar" style="width:35.52px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(7)">5.6</span><div class="bar-cell"><div class="bar" style="width:44.48px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(7)">6.0</span><div class="bar-cell"><div class="bar" style="width:47.84px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(7)">5.9</span><div class="bar-cell"><div class="bar" style="width:46.88000000000001px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.5</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>9</td>
+<td class="name-cell">恒生科技</td>
+<td class="code-cell">HSTECH</td>
+<td><span class="score-cell" onclick="showDetail(8)">4.8</span><div class="bar-cell"><div class="bar" style="width:38.32px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(8)">6.0</span><div class="bar-cell"><div class="bar" style="width:47.92px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(8)">5.5</span><div class="bar-cell"><div class="bar" style="width:44.16px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(8)">5.3</span><div class="bar-cell"><div class="bar" style="width:42.32px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.4</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>10</td>
+<td class="name-cell">机器人</td>
+<td class="code-cell">H30590</td>
+<td><span class="score-cell" onclick="showDetail(9)">4.6</span><div class="bar-cell"><div class="bar" style="width:36.88px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(9)">5.5</span><div class="bar-cell"><div class="bar" style="width:43.75999999999999px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(9)">5.8</span><div class="bar-cell"><div class="bar" style="width:46.0px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(9)">5.5</span><div class="bar-cell"><div class="bar" style="width:44.16px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.3</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>11</td>
+<td class="name-cell">消费电子</td>
+<td class="code-cell">931494</td>
+<td><span class="score-cell" onclick="showDetail(10)">4.7</span><div class="bar-cell"><div class="bar" style="width:37.6px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(10)">5.4</span><div class="bar-cell"><div class="bar" style="width:43.11999999999999px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(10)">5.6</span><div class="bar-cell"><div class="bar" style="width:45.03999999999999px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(10)">5.4</span><div class="bar-cell"><div class="bar" style="width:43.2px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.3</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>12</td>
+<td class="name-cell">港股通汽车</td>
+<td class="code-cell">931239</td>
+<td><span class="score-cell" onclick="showDetail(11)">4.9</span><div class="bar-cell"><div class="bar" style="width:38.96px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(11)">5.3</span><div class="bar-cell"><div class="bar" style="width:42.400000000000006px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(11)">5.4</span><div class="bar-cell"><div class="bar" style="width:43.2px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(11)">5.2</span><div class="bar-cell"><div class="bar" style="width:41.36px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.2</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>13</td>
+<td class="name-cell">中证信创</td>
+<td class="code-cell">931247</td>
+<td><span class="score-cell" onclick="showDetail(12)">5.0</span><div class="bar-cell"><div class="bar" style="width:39.68px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(12)">5.1</span><div class="bar-cell"><div class="bar" style="width:41.04px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(12)">5.3</span><div class="bar-cell"><div class="bar" style="width:42.32px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(12)">4.9</span><div class="bar-cell"><div class="bar" style="width:39.52px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.1</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>14</td>
+<td class="name-cell">香港证券</td>
+<td class="code-cell">930709</td>
+<td><span class="score-cell" onclick="showDetail(13)">5.6</span><div class="bar-cell"><div class="bar" style="width:44.48px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(13)">6.2</span><div class="bar-cell"><div class="bar" style="width:50.0px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(13)">4.4</span><div class="bar-cell"><div class="bar" style="width:34.96px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(13)">4.0</span><div class="bar-cell"><div class="bar" style="width:32.16px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.0</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>15</td>
+<td class="name-cell">工业有色</td>
+<td class="code-cell">H11059</td>
+<td><span class="score-cell" onclick="showDetail(14)">5.0</span><div class="bar-cell"><div class="bar" style="width:40.32px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(14)">5.0</span><div class="bar-cell"><div class="bar" style="width:40.32px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(14)">5.2</span><div class="bar-cell"><div class="bar" style="width:41.36px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(14)">4.8</span><div class="bar-cell"><div class="bar" style="width:38.64px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#f39c12">5.0</td>
+<td><span class="grade-tag grade-neutral">🟡 均衡观望</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>16</td>
+<td class="name-cell">中证农业</td>
+<td class="code-cell">000949</td>
+<td><span class="score-cell" onclick="showDetail(15)">5.1</span><div class="bar-cell"><div class="bar" style="width:41.04px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(15)">5.0</span><div class="bar-cell"><div class="bar" style="width:39.68px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(15)">5.1</span><div class="bar-cell"><div class="bar" style="width:40.480000000000004px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(15)">4.7</span><div class="bar-cell"><div class="bar" style="width:37.68px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">5.0</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>17</td>
+<td class="name-cell">建筑材料</td>
+<td class="code-cell">931009</td>
+<td><span class="score-cell" onclick="showDetail(16)">5.2</span><div class="bar-cell"><div class="bar" style="width:41.68px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(16)">4.9</span><div class="bar-cell"><div class="bar" style="width:38.96px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(16)">4.9</span><div class="bar-cell"><div class="bar" style="width:39.52px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(16)">4.6</span><div class="bar-cell"><div class="bar" style="width:36.8px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.9</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>18</td>
+<td class="name-cell">中证白酒</td>
+<td class="code-cell">399997</td>
+<td><span class="score-cell" onclick="showDetail(17)">6.2</span><div class="bar-cell"><div class="bar" style="width:50.0px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(17)">3.8</span><div class="bar-cell"><div class="bar" style="width:30.0px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(17)">4.8</span><div class="bar-cell"><div class="bar" style="width:38.64px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(17)">4.5</span><div class="bar-cell"><div class="bar" style="width:35.84px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.8</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>19</td>
+<td class="name-cell">细分化工</td>
+<td class="code-cell">000813</td>
+<td><span class="score-cell" onclick="showDetail(18)">6.1</span><div class="bar-cell"><div class="bar" style="width:48.64px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(18)">3.9</span><div class="bar-cell"><div class="bar" style="width:31.36px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(18)">3.6</span><div class="bar-cell"><div class="bar" style="width:28.479999999999997px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(18)">5.8</span><div class="bar-cell"><div class="bar" style="width:46.0px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.8</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>20</td>
+<td class="name-cell">软件指数</td>
+<td class="code-cell">H30202</td>
+<td><span class="score-cell" onclick="showDetail(19)">5.3</span><div class="bar-cell"><div class="bar" style="width:42.400000000000006px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(19)">4.8</span><div class="bar-cell"><div class="bar" style="width:38.32px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(19)">4.7</span><div class="bar-cell"><div class="bar" style="width:37.68px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(19)">4.4</span><div class="bar-cell"><div class="bar" style="width:34.96px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.8</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>21</td>
+<td class="name-cell">中证数据</td>
+<td class="code-cell">930902</td>
+<td><span class="score-cell" onclick="showDetail(20)">5.4</span><div class="bar-cell"><div class="bar" style="width:43.11999999999999px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(20)">4.7</span><div class="bar-cell"><div class="bar" style="width:37.6px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(20)">4.6</span><div class="bar-cell"><div class="bar" style="width:36.8px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(20)">4.2</span><div class="bar-cell"><div class="bar" style="width:34.0px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.7</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>22</td>
+<td class="name-cell">CS电池</td>
+<td class="code-cell">931719</td>
+<td><span class="score-cell" onclick="showDetail(21)">5.5</span><div class="bar-cell"><div class="bar" style="width:43.75999999999999px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(21)">4.6</span><div class="bar-cell"><div class="bar" style="width:36.88px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(21)">4.5</span><div class="bar-cell"><div class="bar" style="width:35.84px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(21)">4.1</span><div class="bar-cell"><div class="bar" style="width:33.12px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.7</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>23</td>
+<td class="name-cell">通用航空</td>
+<td class="code-cell">931855</td>
+<td><span class="score-cell" onclick="showDetail(22)">5.7</span><div class="bar-cell"><div class="bar" style="width:45.2px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(22)">4.5</span><div class="bar-cell"><div class="bar" style="width:36.24px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(22)">4.2</span><div class="bar-cell"><div class="bar" style="width:34.0px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(22)">3.9</span><div class="bar-cell"><div class="bar" style="width:31.28px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.6</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>24</td>
+<td class="name-cell">创业板指</td>
+<td class="code-cell">399006</td>
+<td><span class="score-cell" onclick="showDetail(23)">4.3</span><div class="bar-cell"><div class="bar" style="width:34.8px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(23)">4.2</span><div class="bar-cell"><div class="bar" style="width:33.44px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(23)">3.5</span><div class="bar-cell"><div class="bar" style="width:27.6px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(23)">6.0</span><div class="bar-cell"><div class="bar" style="width:47.84px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.5</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>25</td>
+<td class="name-cell">稀土产业</td>
+<td class="code-cell">930598</td>
+<td><span class="score-cell" onclick="showDetail(24)">5.7</span><div class="bar-cell"><div class="bar" style="width:45.84px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(24)">4.4</span><div class="bar-cell"><div class="bar" style="width:35.52px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(24)">4.0</span><div class="bar-cell"><div class="bar" style="width:32.16px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(24)">3.7</span><div class="bar-cell"><div class="bar" style="width:29.439999999999998px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.5</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>26</td>
+<td class="name-cell">半导体材料设备</td>
+<td class="code-cell">931743</td>
+<td><span class="score-cell" onclick="showDetail(25)">5.8</span><div class="bar-cell"><div class="bar" style="width:46.56px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(25)">4.3</span><div class="bar-cell"><div class="bar" style="width:34.8px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(25)">3.9</span><div class="bar-cell"><div class="bar" style="width:31.28px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(25)">3.6</span><div class="bar-cell"><div class="bar" style="width:28.479999999999997px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.4</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>27</td>
+<td class="name-cell">科创芯片</td>
+<td class="code-cell">000685</td>
+<td><span class="score-cell" onclick="showDetail(26)">3.8</span><div class="bar-cell"><div class="bar" style="width:30.0px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(26)">5.2</span><div class="bar-cell"><div class="bar" style="width:41.68px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(26)">3.3</span><div class="bar-cell"><div class="bar" style="width:26.64px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(26)">5.1</span><div class="bar-cell"><div class="bar" style="width:40.480000000000004px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.3</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">估值偏高(PE=301.0)</td>
+</tr><tr>
+<td>28</td>
+<td class="name-cell">港股创新药(HKD)</td>
+<td class="code-cell">931787</td>
+<td><span class="score-cell" onclick="showDetail(27)">6.0</span><div class="bar-cell"><div class="bar" style="width:47.92px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(27)">4.3</span><div class="bar-cell"><div class="bar" style="width:34.16px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(27)">3.7</span><div class="bar-cell"><div class="bar" style="width:29.439999999999998px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(27)">3.3</span><div class="bar-cell"><div class="bar" style="width:26.64px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.3</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>29</td>
+<td class="name-cell">光伏产业</td>
+<td class="code-cell">931151</td>
+<td><span class="score-cell" onclick="showDetail(28)">5.9</span><div class="bar-cell"><div class="bar" style="width:47.2px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(28)">4.1</span><div class="bar-cell"><div class="bar" style="width:32.72px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(28)">3.8</span><div class="bar-cell"><div class="bar" style="width:30.32px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(28)">3.5</span><div class="bar-cell"><div class="bar" style="width:27.6px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">4.3</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">综合表现均衡</td>
+</tr><tr>
+<td>30</td>
+<td class="name-cell">中证军工</td>
+<td class="code-cell">399967</td>
+<td><span class="score-cell" onclick="showDetail(29)">3.8</span><div class="bar-cell"><div class="bar" style="width:30.64px;background:#27ae60"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(29)">4.0</span><div class="bar-cell"><div class="bar" style="width:32.08px;background:#8e44ad"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(29)">4.1</span><div class="bar-cell"><div class="bar" style="width:33.12px;background:#2980b9"></div></div></td>
+<td><span class="score-cell" onclick="showDetail(29)">3.8</span><div class="bar-cell"><div class="bar" style="width:30.32px;background:#f39c12"></div></div></td>
+<td style="font-weight:700;font-size:15px;color:#e67e22">3.9</td>
+<td><span class="grade-tag grade-cautious">🟠 谨慎规避</span></td>
+<td class="reason">估值偏高(PE=69.4)</td>
+</tr></tbody></table></div></div>
+<div class="panel" id="panel-factors">
+<div class="table-container"><table><thead><tr><th>#</th><th>指数</th><th colspan="4" class="dim-header" style="background:#e8f5e9">质量因子(0-10)</th><th colspan="4" class="dim-header" style="background:#f3e5f5">资金面因子(0-10)</th><th colspan="3" class="dim-header" style="background:#e3f2fd">技术面因子(0-10)</th><th colspan="3" class="dim-header" style="background:#fff8e1">消息面因子(0-10)</th></tr><tr><th></th><th></th><th>PEG代理</th><th>ROE代理</th><th>增速代理</th><th>纯度代理</th><th>主力资金</th><th>北向代理</th><th>融资代理</th><th>机构代理</th><th>趋势</th><th>量价</th><th>RSI</th><th>景气度</th><th>预期</th><th>舆情</th></tr></thead><tbody>
+<tr>
+<td>1</td><td class="name-cell">中证煤炭</td>
+<td>9.7</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>0.3</td><td>5.0</td>
+<td>5.0</td><td>10.0</td><td>5.0</td>
+<td>5.0</td><td>9.3</td><td>5.0</td>
+</tr><tr>
+<td>2</td><td class="name-cell">通信设备</td>
+<td>0.7</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>8.3</td><td>5.0</td>
+<td>5.0</td><td>9.7</td><td>5.0</td>
+<td>5.0</td><td>10.0</td><td>5.0</td>
+</tr><tr>
+<td>3</td><td class="name-cell">中证旅游</td>
+<td>1.0</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>7.9</td><td>5.0</td>
+<td>5.0</td><td>9.3</td><td>5.0</td>
+<td>5.0</td><td>9.7</td><td>5.0</td>
+</tr><tr>
+<td>4</td><td class="name-cell">动漫游戏</td>
+<td>2.1</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>9.3</td><td>5.0</td>
+<td>5.0</td><td>8.3</td><td>5.0</td>
+<td>5.0</td><td>8.3</td><td>5.0</td>
+</tr><tr>
+<td>5</td><td class="name-cell">云计算</td>
+<td>1.7</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>8.6</td><td>5.0</td>
+<td>5.0</td><td>8.6</td><td>5.0</td>
+<td>5.0</td><td>8.6</td><td>5.0</td>
+</tr><tr>
+<td>6</td><td class="name-cell">800能源</td>
+<td>1.4</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>7.6</td><td>5.0</td>
+<td>5.0</td><td>9.0</td><td>5.0</td>
+<td>5.0</td><td>9.0</td><td>5.0</td>
+</tr><tr>
+<td>7</td><td class="name-cell">中证2000</td>
+<td>3.1</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>9.7</td><td>5.0</td>
+<td>5.0</td><td>7.6</td><td>5.0</td>
+<td>5.0</td><td>6.9</td><td>5.0</td>
+</tr><tr>
+<td>8</td><td class="name-cell">中证全指电力指数</td>
+<td>2.8</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>7.2</td><td>5.0</td>
+<td>5.0</td><td>7.9</td><td>5.0</td>
+<td>5.0</td><td>7.6</td><td>5.0</td>
+</tr><tr>
+<td>9</td><td class="name-cell">恒生科技</td>
+<td>4.1</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>9.0</td><td>5.0</td>
+<td>5.0</td><td>6.5</td><td>5.0</td>
+<td>5.0</td><td>5.9</td><td>5.0</td>
+</tr><tr>
+<td>10</td><td class="name-cell">机器人</td>
+<td>3.5</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>6.9</td><td>5.0</td>
+<td>5.0</td><td>7.2</td><td>5.0</td>
+<td>5.0</td><td>6.5</td><td>5.0</td>
+</tr><tr>
+<td>11</td><td class="name-cell">消费电子</td>
+<td>3.8</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>6.5</td><td>5.0</td>
+<td>5.0</td><td>6.9</td><td>5.0</td>
+<td>5.0</td><td>6.2</td><td>5.0</td>
+</tr><tr>
+<td>12</td><td class="name-cell">港股通汽车</td>
+<td>4.5</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>6.2</td><td>5.0</td>
+<td>5.0</td><td>6.2</td><td>5.0</td>
+<td>5.0</td><td>5.5</td><td>5.0</td>
+</tr><tr>
+<td>13</td><td class="name-cell">中证信创</td>
+<td>4.8</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>5.5</td><td>5.0</td>
+<td>5.0</td><td>5.9</td><td>5.0</td>
+<td>5.0</td><td>4.8</td><td>5.0</td>
+</tr><tr>
+<td>14</td><td class="name-cell">香港证券</td>
+<td>7.2</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>10.0</td><td>5.0</td>
+<td>5.0</td><td>3.1</td><td>5.0</td>
+<td>5.0</td><td>2.1</td><td>5.0</td>
+</tr><tr>
+<td>15</td><td class="name-cell">工业有色</td>
+<td>5.2</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>5.2</td><td>5.0</td>
+<td>5.0</td><td>5.5</td><td>5.0</td>
+<td>5.0</td><td>4.5</td><td>5.0</td>
+</tr><tr>
+<td>16</td><td class="name-cell">中证农业</td>
+<td>5.5</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>4.8</td><td>5.0</td>
+<td>5.0</td><td>5.2</td><td>5.0</td>
+<td>5.0</td><td>4.1</td><td>5.0</td>
+</tr><tr>
+<td>17</td><td class="name-cell">建筑材料</td>
+<td>5.9</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>4.5</td><td>5.0</td>
+<td>5.0</td><td>4.8</td><td>5.0</td>
+<td>5.0</td><td>3.8</td><td>5.0</td>
+</tr><tr>
+<td>18</td><td class="name-cell">中证白酒</td>
+<td>10.0</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>0.0</td><td>5.0</td>
+<td>5.0</td><td>4.5</td><td>5.0</td>
+<td>5.0</td><td>3.5</td><td>5.0</td>
+</tr><tr>
+<td>19</td><td class="name-cell">细分化工</td>
+<td>9.3</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>0.7</td><td>5.0</td>
+<td>5.0</td><td>0.7</td><td>5.0</td>
+<td>5.0</td><td>7.2</td><td>5.0</td>
+</tr><tr>
+<td>20</td><td class="name-cell">软件指数</td>
+<td>6.2</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>4.1</td><td>5.0</td>
+<td>5.0</td><td>4.1</td><td>5.0</td>
+<td>5.0</td><td>3.1</td><td>5.0</td>
+</tr><tr>
+<td>21</td><td class="name-cell">中证数据</td>
+<td>6.5</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>3.8</td><td>5.0</td>
+<td>5.0</td><td>3.8</td><td>5.0</td>
+<td>5.0</td><td>2.8</td><td>5.0</td>
+</tr><tr>
+<td>22</td><td class="name-cell">CS电池</td>
+<td>6.9</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>3.5</td><td>5.0</td>
+<td>5.0</td><td>3.5</td><td>5.0</td>
+<td>5.0</td><td>2.4</td><td>5.0</td>
+</tr><tr>
+<td>23</td><td class="name-cell">通用航空</td>
+<td>7.6</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>3.1</td><td>5.0</td>
+<td>5.0</td><td>2.8</td><td>5.0</td>
+<td>5.0</td><td>1.7</td><td>5.0</td>
+</tr><tr>
+<td>24</td><td class="name-cell">创业板指</td>
+<td>2.4</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>1.7</td><td>5.0</td>
+<td>5.0</td><td>0.3</td><td>5.0</td>
+<td>5.0</td><td>7.9</td><td>5.0</td>
+</tr><tr>
+<td>25</td><td class="name-cell">稀土产业</td>
+<td>7.9</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>2.8</td><td>5.0</td>
+<td>5.0</td><td>2.1</td><td>5.0</td>
+<td>5.0</td><td>1.0</td><td>5.0</td>
+</tr><tr>
+<td>26</td><td class="name-cell">半导体材料设备</td>
+<td>8.3</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>2.4</td><td>5.0</td>
+<td>5.0</td><td>1.7</td><td>5.0</td>
+<td>5.0</td><td>0.7</td><td>5.0</td>
+</tr><tr>
+<td>27</td><td class="name-cell">科创芯片</td>
+<td>0.0</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>5.9</td><td>5.0</td>
+<td>5.0</td><td>0.0</td><td>5.0</td>
+<td>5.0</td><td>5.2</td><td>5.0</td>
+</tr><tr>
+<td>28</td><td class="name-cell">港股创新药(HKD)</td>
+<td>9.0</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>2.1</td><td>5.0</td>
+<td>5.0</td><td>1.0</td><td>5.0</td>
+<td>5.0</td><td>0.0</td><td>5.0</td>
+</tr><tr>
+<td>29</td><td class="name-cell">光伏产业</td>
+<td>8.6</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>1.4</td><td>5.0</td>
+<td>5.0</td><td>1.4</td><td>5.0</td>
+<td>5.0</td><td>0.3</td><td>5.0</td>
+</tr><tr>
+<td>30</td><td class="name-cell">中证军工</td>
+<td>0.3</td><td>5.0</td><td>5.0</td><td>5.0</td>
+<td>5.0</td><td>5.0</td><td>1.0</td><td>5.0</td>
+<td>5.0</td><td>2.4</td><td>5.0</td>
+<td>5.0</td><td>1.4</td><td>5.0</td>
+</tr></tbody></table></div>
+<div class="table-container" style="margin-top:16px"><table><thead><tr><th>#</th><th>指数</th><th>PE</th><th>PB</th><th>PS</th><th>股息率</th><th>5日涨跌</th><th>20日涨跌</th><th>60日涨跌</th><th>量比</th><th>振幅</th><th>指数换手</th><th>ETF净申赎</th><th>ETF份额变化率</th></tr></thead><tbody>
+<tr>
+<td>1</td><td class="name-cell">中证煤炭</td>
+<td>19.57</td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.88</td><td>0.00%</td>
+<td>1.07% <span class="src-tag src-A">westock</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>2</td><td class="name-cell">通信设备</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>3</td><td class="name-cell">中证旅游</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>4</td><td class="name-cell">动漫游戏</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td>13.22% <span class="src-tag src-C">ETF代理</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>5</td><td class="name-cell">云计算</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td>4.11% <span class="src-tag src-C">ETF代理</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>6</td><td class="name-cell">800能源</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>7</td><td class="name-cell">中证2000</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td>14.38% <span class="src-tag src-C">ETF代理</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>8</td><td class="name-cell">中证全指电力指数</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>9</td><td class="name-cell">恒生科技</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td>9.30% <span class="src-tag src-C">ETF代理</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>10</td><td class="name-cell">机器人</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>11</td><td class="name-cell">消费电子</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>12</td><td class="name-cell">港股通汽车</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>13</td><td class="name-cell">中证信创</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>14</td><td class="name-cell">香港证券</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td>24.47% <span class="src-tag src-C">ETF代理</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>15</td><td class="name-cell">工业有色</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>16</td><td class="name-cell">中证农业</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>17</td><td class="name-cell">建筑材料</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>18</td><td class="name-cell">中证白酒</td>
+<td>17.85</td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.82</td><td>0.00%</td>
+<td>0.99% <span class="src-tag src-A">westock</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>19</td><td class="name-cell">细分化工</td>
+<td>23.69</td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.81</td><td>0.00%</td>
+<td>1.96% <span class="src-tag src-A">westock</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>20</td><td class="name-cell">软件指数</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>21</td><td class="name-cell">中证数据</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>22</td><td class="name-cell">CS电池</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>23</td><td class="name-cell">通用航空</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>24</td><td class="name-cell">创业板指</td>
+<td>69.20</td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.79</td><td>0.00%</td>
+<td>3.54% <span class="src-tag src-A">westock</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>25</td><td class="name-cell">稀土产业</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>26</td><td class="name-cell">半导体材料设备</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>27</td><td class="name-cell">科创芯片</td>
+<td>301.00</td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.77</td><td>0.00%</td>
+<td>3.61% <span class="src-tag src-A">westock</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>28</td><td class="name-cell">港股创新药(HKD)</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td><span style="color:#999">-</span> <span class="src-tag src-C">无数据</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>29</td><td class="name-cell">光伏产业</td>
+<td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.00</td><td>0.00%</td>
+<td>3.07% <span class="src-tag src-C">ETF代理</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr><tr>
+<td>30</td><td class="name-cell">中证军工</td>
+<td>69.39</td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td><td><span style="color:#999">-</span></td>
+<td>0.00%</td><td>0.00%</td>
+<td>0.00%</td>
+<td>0.82</td><td>0.00%</td>
+<td>2.45% <span class="src-tag src-A">westock</span></td>
+<td><span style="color:#999">0</span></td>
+<td>+0.00%</td>
+</tr></tbody></table></div>
+<div style="color:#888;font-size:11px;margin-top:8px;padding:0 8px">子因子评分 = 样本内百分位排名/10 → 0-10分 | 代理说明: PEG→PE百分位 | ROE→PB百分位 | 增速→PS百分位 | 纯度→股息率 | 北向→ETF申赎 | 融资→换手率 | 机构→份额变化 | 景气→板块涨跌 | 预期→ETF涨跌 | 舆情→新闻计数</div>
+</div>
+<div class="panel" id="panel-audit">
+<div class="audit-box">
+<h4>🔍 V5 数据溯源核查报告</h4>
+<ul>
+<li><strong>评分体系</strong>: 对齐《指数四维精简量化评分体系（可落地·API适配）》文档</li>
+<li><strong>评分范围</strong>: 0-10分制，四维等权25%</li>
+<li><strong>评级标准</strong>: 9-10优质配置 | 7-8.9中性偏多 | 5-6.9均衡观望 | 3-4.9谨慎规避 | 0-2.9坚决规避</li>
+<li><strong>数据拉取时间</strong>: 2026-07-07T10:37 CST</li>
+<li><strong>API调用</strong>: westock-data quote + etf + board + marketnews + 腾讯财经API</li>
+<li><strong>代理指标说明</strong>: 因免费API无法获取ROE/北向/融资余额/RSI等原始因子，使用可获取的关联指标作为代理</li>
+</ul>
+</div>
+<div class="method-box"><h3>因子-代理映射明细</h3><table><tr><th>维度</th><th>文档因子</th><th>代理指标</th><th>代理逻辑</th><th>数据源</th><th>置信度</th></tr><tr><td>质量</td><td>成分股加权PEG</td><td>PE百分位(反向)</td><td>PE越低→PEG越优</td><td>westock quote</td><td><span style="color:#27ae60;font-weight:700">A</span></td></tr><tr><td>质量</td><td>成分股加权ROE</td><td>PB百分位(反向)</td><td>低PB≈高ROE价值股</td><td>westock quote</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr><tr><td>质量</td><td>成分股净利润增速</td><td>PS-TTM百分位(反向)</td><td>低PS≈高营收效率</td><td>westock quote</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr><tr><td>质量</td><td>指数行业纯度</td><td>股息率百分位</td><td>高股息≈成熟纯赛道</td><td>westock quote</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr><tr><td>资金面</td><td>近5日板块主力资金强度</td><td>板块5日资金净流入百分位</td><td>直接对应</td><td>westock board</td><td><span style="color:#27ae60;font-weight:700">A</span></td></tr><tr><td>资金面</td><td>30日北向持仓变动</td><td>ETF净申赎百分位</td><td>机构ETF申赎≈北向</td><td>westock etf</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr><tr><td>资金面</td><td>10日融资余额变动率</td><td>指数换手率百分位</td><td>换手率≈杠杆情绪</td><td>westock+腾讯</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr><tr><td>资金面</td><td>机构季度持仓变动</td><td>ETF份额变化率百分位</td><td>份额增减≈机构行为</td><td>westock etf</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr><tr><td>技术面</td><td>指数中期趋势(60日线)</td><td>60日涨跌幅百分位</td><td>直接对应</td><td>westock quote</td><td><span style="color:#27ae60;font-weight:700">A</span></td></tr><tr><td>技术面</td><td>10日量价匹配度</td><td>量比百分位</td><td>量比>1=放量上涨</td><td>westock quote</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr><tr><td>技术面</td><td>RSI强弱&波动率</td><td>振幅(反向)+5日动量混合</td><td>低振幅+涨=强RSI</td><td>westock quote</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr><tr><td>消息面</td><td>行业政策与赛道景气度</td><td>板块当日涨跌百分位</td><td>板块涨=景气度高</td><td>westock board</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr><tr><td>消息面</td><td>行业机构一致预期</td><td>ETF当日涨跌百分位</td><td>ETF价=市场预期</td><td>westock etf</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr><tr><td>消息面</td><td>赛道舆情与风险事件</td><td>新闻关注百分位</td><td>新闻多=关注高</td><td>westock marketnews</td><td><span style="color:#f39c12;font-weight:700">B</span></td></tr></table></div><div class="method-box"><h3>数据覆盖率统计</h3><table><tr><th>数据维度</th><th>有真实数据</th><th>覆盖率</th><th>数据源</th></tr><tr><td>PE(PEG代理)</td><td>6/30</td><td><span style="color:#e74c3c;font-weight:700">20%</span></td><td>westock quote</td></tr><tr><td>PB(ROE代理)</td><td>0/30</td><td><span style="color:#e74c3c;font-weight:700">0%</span></td><td>westock quote</td></tr><tr><td>PS(增速代理)</td><td>0/30</td><td><span style="color:#e74c3c;font-weight:700">0%</span></td><td>westock quote</td></tr><tr><td>股息率(纯度代理)</td><td>0/30</td><td><span style="color:#e74c3c;font-weight:700">0%</span></td><td>westock quote</td></tr><tr><td>60日动量(趋势)</td><td>0/30</td><td><span style="color:#e74c3c;font-weight:700">0%</span></td><td>westock quote</td></tr><tr><td>量比(量价)</td><td>6/30</td><td><span style="color:#e74c3c;font-weight:700">20%</span></td><td>westock quote</td></tr><tr><td>板块5日资金(主力)</td><td>0/30</td><td><span style="color:#e74c3c;font-weight:700">0%</span></td><td>westock board</td></tr><tr><td>ETF申赎(北向代理)</td><td>0/30</td><td><span style="color:#e74c3c;font-weight:700">0%</span></td><td>westock etf</td></tr><tr><td>指数换手率(融资代理)</td><td>12/30</td><td><span style="color:#e74c3c;font-weight:700">40%</span></td><td>westock+腾讯</td></tr><tr><td>ETF份额变化(机构代理)</td><td>0/30</td><td><span style="color:#e74c3c;font-weight:700">0%</span></td><td>westock etf</td></tr><tr><td>板块涨跌(景气代理)</td><td>27/30</td><td><span style="color:#27ae60;font-weight:700">90%</span></td><td>westock board</td></tr><tr><td>新闻关注(舆情代理)</td><td>0/30</td><td><span style="color:#e74c3c;font-weight:700">0%</span></td><td>westock marketnews</td></tr></table></div><div class="audit-box" style="background:linear-gradient(135deg,#f8d7da,#fce4ec);border-left-color:#e74c3c">
+<h4 style="color:#721c24">⚠️ 代理指标局限性</h4>
+<ul>
+<li><strong>ROE→PB代理</strong>: PB与ROE并非严格反比，仅作为截面排名的近似替代</li>
+<li><strong>北向→ETF申赎代理</strong>: ETF申赎包含所有机构行为，不仅限于北向资金</li>
+<li><strong>融资→换手率代理</strong>: 换手率反映整体交易活跃度，不完全等于融资杠杆</li>
+<li><strong>RSI→振幅+动量代理</strong>: 无法计算真实RSI(需逐日收盘价)，用振幅反向+短期动量近似</li>
+<li><strong>机构预期→ETF涨跌代理</strong>: ETF价格反映市场整体预期，非仅机构预期</li>
+<li><strong>板块匹配</strong>: 部分指数无精确对应板块，使用关键词匹配，可能存在偏差</li>
+</ul>
+</div>
+</div>
+<div class="panel" id="panel-method">
+<div class="method-box">
+<h3>📐 指数四维精简量化评分体系 (0-10分制)</h3>
+<p style="font-size:12px;color:#888;margin-bottom:16px">对齐《指数四维精简量化评分体系（可落地·API适配）》文档 · 四维度等权25% · 子因子0-10分 · 百分位排名归一化</p>
+<table>
+<tr><th>维度</th><th>权重</th><th>子因子(0-10分)</th><th>文档原始因子</th><th>代理指标</th></tr>
+<tr><td rowspan="4">质量因子</td><td rowspan="4">25%</td><td>PEG代理(PE百分位/10)</td><td>成分股加权PEG</td><td>PE百分位(反向)</td></tr>
+<tr><td>ROE代理(PB百分位/10)</td><td>成分股加权ROE</td><td>PB百分位(反向)</td></tr>
+<tr><td>增速代理(PS百分位/10)</td><td>成分股净利润增速</td><td>PS-TTM百分位(反向)</td></tr>
+<tr><td>纯度代理(股息率百分位/10)</td><td>指数行业纯度</td><td>股息率百分位</td></tr>
+
+<tr><td rowspan="4">资金面因子</td><td rowspan="4">25%</td><td>主力资金(板块5日流入百分位/10)</td><td>近5日板块主力资金强度</td><td>板块5日资金净流入</td></tr>
+<tr><td>北向代理(ETF申赎百分位/10)</td><td>30日北向持仓变动</td><td>ETF净申赎</td></tr>
+<tr><td>融资代理(换手率百分位/10)</td><td>10日融资余额变动率</td><td>指数换手率</td></tr>
+<tr><td>机构代理(份额变化百分位/10)</td><td>机构季度持仓变动</td><td>ETF份额变化率</td></tr>
+
+<tr><td rowspan="3">技术面因子</td><td rowspan="3">25%</td><td>趋势(60日涨跌百分位/10)</td><td>指数中期趋势(60日线)</td><td>60日涨跌幅</td></tr>
+<tr><td>量价(量比百分位/10)</td><td>10日量价匹配度</td><td>量比</td></tr>
+<tr><td>RSI(振幅反向+5日动量混合/10)</td><td>RSI强弱&波动率</td><td>振幅+5日涨跌</td></tr>
+
+<tr><td rowspan="3">消息面因子</td><td rowspan="3">25%</td><td>景气度(板块涨跌百分位/10)</td><td>行业政策与赛道景气度</td><td>板块当日涨跌</td></tr>
+<tr><td>预期(ETF涨跌百分位/10)</td><td>行业机构一致预期</td><td>ETF当日涨跌</td></tr>
+<tr><td>舆情(新闻百分位/10)</td><td>赛道舆情与风险事件</td><td>新闻标题计数</td></tr>
+</table>
+</div>
+
+<div class="method-box">
+<h3>📊 评级标准 (0-10分制)</h3>
+<table>
+<tr><td style="color:#27ae60;font-weight:700">🟢 优质配置</td><td>9.0 - 10.0</td><td>四因子均衡优秀，强烈推荐配置</td></tr>
+<tr><td style="color:#2980b9;font-weight:700">🔵 中性偏多</td><td>7.0 - 8.9</td><td>多数因子偏多，可适度超配</td></tr>
+<tr><td style="color:#f39c12;font-weight:700">🟡 均衡观望</td><td>5.0 - 6.9</td><td>因子均衡中性，维持标配</td></tr>
+<tr><td style="color:#e67e22;font-weight:700">🟠 谨慎规避</td><td>3.0 - 4.9</td><td>多因子偏弱，建议低配</td></tr>
+<tr><td style="color:#e74c3c;font-weight:700">🔴 坚决规避</td><td>0.0 - 2.9</td><td>全面弱势，坚决回避</td></tr>
+</table>
+</div>
+
+<div class="method-box">
+<h3>🔄 评分体系变更记录</h3>
+<table>
+<tr><td>评分范围</td><td>0-100分 → 0-10分 (对齐文档)</td></tr>
+<tr><td>评级标准</td><td>S/A/B/C/D → 优质配置/中性偏多/均衡观望/谨慎规避/坚决规避 (对齐文档)</td></tr>
+<tr><td>质量因子</td><td>PE×40%+PB×25%+PS×20%+股息×15% → PEG代理+ROE代理+增速代理+纯度代理 (4因子等权)</td></tr>
+<tr><td>资金面因子</td><td>ETF申赎×50%+指数换手×30%+ETF换手×20% → 主力资金+北向代理+融资代理+机构代理 (4因子等权)</td></tr>
+<tr><td>技术面因子</td><td>6子指标加权 → 趋势+量价+RSI (3因子等权, 对齐文档)</td></tr>
+<tr><td>消息面因子</td><td>5子指标加权 → 景气度+预期+舆情 (3因子等权, 对齐文档)</td></tr>
+<tr><td>新增数据</td><td>板块5日资金净流入 + ETF份额变化率</td></tr>
+</table>
+</div>
+</div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+<div class="modal" id="modalContent" onclick="event.stopPropagation()"></div>
+</div>
+
+<footer>指数四维精简量化评分体系 V5 · 对齐文档 · 0-10分制 · 2026-07-07T10:37</footer>
+
+<script>
+const items = [{"name": "中证煤炭", "code": "399998", "wcode": "sz399998", "etf_code": "sh515220", "etf_name": "", "pe": 19.57, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0.88, "swing": 0, "idx_turnover": 1.07, "idx_turnover_source": "westock", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.37102564102564, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "煤炭行业", "q_peg": 9.66, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 6.17, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 0.34, "c_inst": 5.0, "capital": 3.83, "t_trend": 5.0, "t_vp": 10.0, "t_rsi": 5.0, "technical": 6.67, "n_policy": 5.0, "n_consensus": 9.31, "n_sentiment": 5.0, "news": 6.44, "total": 5.78, "grade": "均衡观望", "rank": 1}, {"name": "通信设备", "code": "931160", "wcode": "cs931160", "etf_code": "sh515880", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.19581818181818, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电子信息", "q_peg": 0.69, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 3.92, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 8.28, "c_inst": 5.0, "capital": 5.82, "t_trend": 5.0, "t_vp": 9.66, "t_rsi": 5.0, "technical": 6.55, "n_policy": 5.0, "n_consensus": 10.0, "n_sentiment": 5.0, "news": 6.67, "total": 5.74, "grade": "均衡观望", "rank": 2}, {"name": "中证旅游", "code": "930633", "wcode": "cs930633", "etf_code": "sh516100", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.37161290322581, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "酒店旅游", "q_peg": 1.03, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.01, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 7.93, "c_inst": 5.0, "capital": 5.73, "t_trend": 5.0, "t_vp": 9.31, "t_rsi": 5.0, "technical": 6.44, "n_policy": 5.0, "n_consensus": 9.66, "n_sentiment": 5.0, "news": 6.55, "total": 5.68, "grade": "均衡观望", "rank": 3}, {"name": "动漫游戏", "code": "930901", "wcode": "cs930901", "etf_code": "sz159869", "etf_name": "游戏ETF华夏", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 13.22, "idx_turnover_source": "etf_proxy", "etf_flow_yuan": 0, "etf_turnover": 13.22, "etf_chg": 1.91, "shares_chg_ratio": 0, "sec_chg": -0.089166666666667, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "传媒娱乐", "q_peg": 2.07, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.27, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 9.31, "c_inst": 5.0, "capital": 6.08, "t_trend": 5.0, "t_vp": 8.28, "t_rsi": 5.0, "technical": 6.09, "n_policy": 5.0, "n_consensus": 8.28, "n_sentiment": 5.0, "news": 6.09, "total": 5.63, "grade": "均衡观望", "rank": 4}, {"name": "云计算", "code": "930851", "wcode": "cs930851", "etf_code": "sh516510", "etf_name": "云计算ETF易方达", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 4.11, "idx_turnover_source": "etf_proxy", "etf_flow_yuan": 0, "etf_turnover": 4.11, "etf_chg": -2.01, "shares_chg_ratio": 0, "sec_chg": -0.19581818181818, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电子信息", "q_peg": 1.72, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.18, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 8.62, "c_inst": 5.0, "capital": 5.9, "t_trend": 5.0, "t_vp": 8.62, "t_rsi": 5.0, "technical": 6.21, "n_policy": 5.0, "n_consensus": 8.62, "n_sentiment": 5.0, "news": 6.21, "total": 5.62, "grade": "均衡观望", "rank": 5}, {"name": "800能源", "code": "000928", "wcode": "sh000928", "etf_code": "sz159930", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.19238095238095, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "石油行业", "q_peg": 1.38, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.09, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 7.59, "c_inst": 5.0, "capital": 5.65, "t_trend": 5.0, "t_vp": 8.97, "t_rsi": 5.0, "technical": 6.32, "n_policy": 5.0, "n_consensus": 8.97, "n_sentiment": 5.0, "news": 6.32, "total": 5.6, "grade": "均衡观望", "rank": 6}, {"name": "中证2000", "code": "932000", "wcode": "cs932000", "etf_code": "sh563300", "etf_name": "中证2000ETF华泰柏瑞", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 14.38, "idx_turnover_source": "etf_proxy", "etf_flow_yuan": 0, "etf_turnover": 14.38, "etf_chg": -2.42, "shares_chg_ratio": 0, "sec_chg": -0.21791666666667, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "综合行业", "q_peg": 3.1, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.53, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 9.66, "c_inst": 5.0, "capital": 6.17, "t_trend": 5.0, "t_vp": 7.59, "t_rsi": 5.0, "technical": 5.86, "n_policy": 5.0, "n_consensus": 6.9, "n_sentiment": 5.0, "news": 5.63, "total": 5.55, "grade": "均衡观望", "rank": 7}, {"name": "中证全指电力指数", "code": "H30199", "wcode": "csH30199", "etf_code": "sh561700", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.2835, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电力行业", "q_peg": 2.76, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.44, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 7.24, "c_inst": 5.0, "capital": 5.56, "t_trend": 5.0, "t_vp": 7.93, "t_rsi": 5.0, "technical": 5.98, "n_policy": 5.0, "n_consensus": 7.59, "n_sentiment": 5.0, "news": 5.86, "total": 5.46, "grade": "均衡观望", "rank": 8}, {"name": "恒生科技", "code": "HSTECH", "wcode": "hkHSTECH", "etf_code": "sh513180", "etf_name": "恒生科技ETF华夏", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 9.3, "idx_turnover_source": "etf_proxy", "etf_flow_yuan": 0, "etf_turnover": 9.3, "etf_chg": -0.35, "shares_chg_ratio": 0, "sec_chg": -0.19581818181818, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电子信息", "q_peg": 4.14, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.79, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 8.97, "c_inst": 5.0, "capital": 5.99, "t_trend": 5.0, "t_vp": 6.55, "t_rsi": 5.0, "technical": 5.52, "n_policy": 5.0, "n_consensus": 5.86, "n_sentiment": 5.0, "news": 5.29, "total": 5.4, "grade": "均衡观望", "rank": 9}, {"name": "机器人", "code": "H30590", "wcode": "csH30590", "etf_code": "sh562500", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": 0, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "", "q_peg": 3.45, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.61, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 6.9, "c_inst": 5.0, "capital": 5.47, "t_trend": 5.0, "t_vp": 7.24, "t_rsi": 5.0, "technical": 5.75, "n_policy": 5.0, "n_consensus": 6.55, "n_sentiment": 5.0, "news": 5.52, "total": 5.34, "grade": "均衡观望", "rank": 10}, {"name": "消费电子", "code": "931494", "wcode": "cs931494", "etf_code": "sh561600", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.49020979020979, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电子器件", "q_peg": 3.79, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.7, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 6.55, "c_inst": 5.0, "capital": 5.39, "t_trend": 5.0, "t_vp": 6.9, "t_rsi": 5.0, "technical": 5.63, "n_policy": 5.0, "n_consensus": 6.21, "n_sentiment": 5.0, "news": 5.4, "total": 5.28, "grade": "均衡观望", "rank": 11}, {"name": "港股通汽车", "code": "931239", "wcode": "cs931239", "etf_code": "sh516800", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.3365625, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "汽车制造", "q_peg": 4.48, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.87, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 6.21, "c_inst": 5.0, "capital": 5.3, "t_trend": 5.0, "t_vp": 6.21, "t_rsi": 5.0, "technical": 5.4, "n_policy": 5.0, "n_consensus": 5.52, "n_sentiment": 5.0, "news": 5.17, "total": 5.19, "grade": "均衡观望", "rank": 12}, {"name": "中证信创", "code": "931247", "wcode": "cs931247", "etf_code": "sh562570", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.19581818181818, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电子信息", "q_peg": 4.83, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.96, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 5.52, "c_inst": 5.0, "capital": 5.13, "t_trend": 5.0, "t_vp": 5.86, "t_rsi": 5.0, "technical": 5.29, "n_policy": 5.0, "n_consensus": 4.83, "n_sentiment": 5.0, "news": 4.94, "total": 5.08, "grade": "均衡观望", "rank": 13}, {"name": "香港证券", "code": "930709", "wcode": "cs930709", "etf_code": "sh513090", "etf_name": "香港证券ETF易方达", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 24.47, "idx_turnover_source": "etf_proxy", "etf_flow_yuan": 0, "etf_turnover": 24.47, "etf_chg": -2.31, "shares_chg_ratio": 0, "sec_chg": -0.21021276595745, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "金融行业", "q_peg": 7.24, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.56, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 10.0, "c_inst": 5.0, "capital": 6.25, "t_trend": 5.0, "t_vp": 3.1, "t_rsi": 5.0, "technical": 4.37, "n_policy": 5.0, "n_consensus": 2.07, "n_sentiment": 5.0, "news": 4.02, "total": 5.05, "grade": "均衡观望", "rank": 14}, {"name": "工业有色", "code": "H11059", "wcode": "csH11059", "etf_code": "sz159871", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.67153846153846, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "有色金属", "q_peg": 5.17, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.04, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 5.17, "c_inst": 5.0, "capital": 5.04, "t_trend": 5.0, "t_vp": 5.52, "t_rsi": 5.0, "technical": 5.17, "n_policy": 5.0, "n_consensus": 4.48, "n_sentiment": 5.0, "news": 4.83, "total": 5.02, "grade": "均衡观望", "rank": 15}, {"name": "中证农业", "code": "000949", "wcode": "sh000949", "etf_code": "sh516810", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.21186440677966, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "农林牧渔", "q_peg": 5.52, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.13, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 4.83, "c_inst": 5.0, "capital": 4.96, "t_trend": 5.0, "t_vp": 5.17, "t_rsi": 5.0, "technical": 5.06, "n_policy": 5.0, "n_consensus": 4.14, "n_sentiment": 5.0, "news": 4.71, "total": 4.96, "grade": "谨慎规避", "rank": 16}, {"name": "建筑材料", "code": "931009", "wcode": "cs931009", "etf_code": "sh516750", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.19682926829268, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "建筑建材", "q_peg": 5.86, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.21, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 4.48, "c_inst": 5.0, "capital": 4.87, "t_trend": 5.0, "t_vp": 4.83, "t_rsi": 5.0, "technical": 4.94, "n_policy": 5.0, "n_consensus": 3.79, "n_sentiment": 5.0, "news": 4.6, "total": 4.9, "grade": "谨慎规避", "rank": 17}, {"name": "中证白酒", "code": "399997", "wcode": "sz399997", "etf_code": "sh512690", "etf_name": "", "pe": 17.85, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0.82, "swing": 0, "idx_turnover": 0.99, "idx_turnover_source": "westock", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -1.3103125, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "酿酒行业", "q_peg": 10.0, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 6.25, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 0.0, "c_inst": 5.0, "capital": 3.75, "t_trend": 5.0, "t_vp": 4.48, "t_rsi": 5.0, "technical": 4.83, "n_policy": 5.0, "n_consensus": 3.45, "n_sentiment": 5.0, "news": 4.48, "total": 4.83, "grade": "谨慎规避", "rank": 18}, {"name": "细分化工", "code": "000813", "wcode": "sh000813", "etf_code": "sh516020", "etf_name": "", "pe": 23.69, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0.81, "swing": 0, "idx_turnover": 1.96, "idx_turnover_source": "westock", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.31546762589928, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "化工行业", "q_peg": 9.31, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 6.08, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 0.69, "c_inst": 5.0, "capital": 3.92, "t_trend": 5.0, "t_vp": 0.69, "t_rsi": 5.0, "technical": 3.56, "n_policy": 5.0, "n_consensus": 7.24, "n_sentiment": 5.0, "news": 5.75, "total": 4.83, "grade": "谨慎规避", "rank": 19}, {"name": "软件指数", "code": "H30202", "wcode": "csH30202", "etf_code": "sh515230", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.19581818181818, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电子信息", "q_peg": 6.21, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.3, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 4.14, "c_inst": 5.0, "capital": 4.79, "t_trend": 5.0, "t_vp": 4.14, "t_rsi": 5.0, "technical": 4.71, "n_policy": 5.0, "n_consensus": 3.1, "n_sentiment": 5.0, "news": 4.37, "total": 4.79, "grade": "谨慎规避", "rank": 20}, {"name": "中证数据", "code": "930902", "wcode": "cs930902", "etf_code": "sh516000", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.19581818181818, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电子信息", "q_peg": 6.55, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.39, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 3.79, "c_inst": 5.0, "capital": 4.7, "t_trend": 5.0, "t_vp": 3.79, "t_rsi": 5.0, "technical": 4.6, "n_policy": 5.0, "n_consensus": 2.76, "n_sentiment": 5.0, "news": 4.25, "total": 4.73, "grade": "谨慎规避", "rank": 21}, {"name": "CS电池", "code": "931719", "wcode": "cs931719", "etf_code": "sh561910", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.37981481481481, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电器行业", "q_peg": 6.9, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.47, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 3.45, "c_inst": 5.0, "capital": 4.61, "t_trend": 5.0, "t_vp": 3.45, "t_rsi": 5.0, "technical": 4.48, "n_policy": 5.0, "n_consensus": 2.41, "n_sentiment": 5.0, "news": 4.14, "total": 4.67, "grade": "谨慎规避", "rank": 22}, {"name": "通用航空", "code": "931855", "wcode": "cs931855", "etf_code": "sh512670", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.94857142857143, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "飞机制造", "q_peg": 7.59, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.65, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 3.1, "c_inst": 5.0, "capital": 4.53, "t_trend": 5.0, "t_vp": 2.76, "t_rsi": 5.0, "technical": 4.25, "n_policy": 5.0, "n_consensus": 1.72, "n_sentiment": 5.0, "news": 3.91, "total": 4.58, "grade": "谨慎规避", "rank": 23}, {"name": "创业板指", "code": "399006", "wcode": "sz399006", "etf_code": "sz159915", "etf_name": "创业板ETF易方达", "pe": 69.2, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0.79, "swing": 0, "idx_turnover": 3.54, "idx_turnover_source": "westock", "etf_flow_yuan": 0, "etf_turnover": 12.04, "etf_chg": -0.96, "shares_chg_ratio": 0, "sec_chg": -0.19581818181818, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电子信息", "q_peg": 2.41, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 4.35, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 1.72, "c_inst": 5.0, "capital": 4.18, "t_trend": 5.0, "t_vp": 0.34, "t_rsi": 5.0, "technical": 3.45, "n_policy": 5.0, "n_consensus": 7.93, "n_sentiment": 5.0, "news": 5.98, "total": 4.49, "grade": "谨慎规避", "rank": 24}, {"name": "稀土产业", "code": "930598", "wcode": "cs930598", "etf_code": "sh516780", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.67153846153846, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "有色金属", "q_peg": 7.93, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.73, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 2.76, "c_inst": 5.0, "capital": 4.44, "t_trend": 5.0, "t_vp": 2.07, "t_rsi": 5.0, "technical": 4.02, "n_policy": 5.0, "n_consensus": 1.03, "n_sentiment": 5.0, "news": 3.68, "total": 4.47, "grade": "谨慎规避", "rank": 25}, {"name": "半导体材料设备", "code": "931743", "wcode": "cs931743", "etf_code": "sh562590", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": 0, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "", "q_peg": 8.28, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.82, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 2.41, "c_inst": 5.0, "capital": 4.35, "t_trend": 5.0, "t_vp": 1.72, "t_rsi": 5.0, "technical": 3.91, "n_policy": 5.0, "n_consensus": 0.69, "n_sentiment": 5.0, "news": 3.56, "total": 4.41, "grade": "谨慎规避", "rank": 26}, {"name": "科创芯片", "code": "000685", "wcode": "sh000685", "etf_code": "sh588200", "etf_name": "", "pe": 301.0, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0.77, "swing": 0, "idx_turnover": 3.61, "idx_turnover_source": "westock", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.49020979020979, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "电子器件", "q_peg": 0.0, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 3.75, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 5.86, "c_inst": 5.0, "capital": 5.21, "t_trend": 5.0, "t_vp": 0.0, "t_rsi": 5.0, "technical": 3.33, "n_policy": 5.0, "n_consensus": 5.17, "n_sentiment": 5.0, "news": 5.06, "total": 4.34, "grade": "谨慎规避", "rank": 27}, {"name": "港股创新药(HKD)", "code": "931787", "wcode": "cs931787", "etf_code": "sh513120", "etf_name": "", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 0, "idx_turnover_source": "no_data", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": 0, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "", "q_peg": 8.97, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.99, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 2.07, "c_inst": 5.0, "capital": 4.27, "t_trend": 5.0, "t_vp": 1.03, "t_rsi": 5.0, "technical": 3.68, "n_policy": 5.0, "n_consensus": 0.0, "n_sentiment": 5.0, "news": 3.33, "total": 4.32, "grade": "谨慎规避", "rank": 28}, {"name": "光伏产业", "code": "931151", "wcode": "cs931151", "etf_code": "sh515790", "etf_name": "光伏ETF华泰柏瑞", "pe": null, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0, "swing": 0, "idx_turnover": 3.07, "idx_turnover_source": "etf_proxy", "etf_flow_yuan": 0, "etf_turnover": 3.07, "etf_chg": -0.96, "shares_chg_ratio": 0, "sec_chg": -0.69728813559322, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "发电设备", "q_peg": 8.62, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 5.9, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 1.38, "c_inst": 5.0, "capital": 4.09, "t_trend": 5.0, "t_vp": 1.38, "t_rsi": 5.0, "technical": 3.79, "n_policy": 5.0, "n_consensus": 0.34, "n_sentiment": 5.0, "news": 3.45, "total": 4.31, "grade": "谨慎规避", "rank": 29}, {"name": "中证军工", "code": "399967", "wcode": "sz399967", "etf_code": "sh512660", "etf_name": "", "pe": 69.39, "pb": null, "ps": null, "div": null, "chg5": 0, "chg10": 0, "chg20": 0, "chg60": 0, "chg_ytd": 0, "volume_ratio": 0.82, "swing": 0, "idx_turnover": 2.45, "idx_turnover_source": "westock", "etf_flow_yuan": 0, "etf_turnover": 0, "etf_chg": 0, "shares_chg_ratio": 0, "sec_chg": -0.23201030927835, "sec_chg5": 0, "sec_inflow": 0, "sec_inflow_5d": 0.0, "news_count": 0, "sector": "机械行业", "q_peg": 0.34, "q_roe": 5.0, "q_profit": 5.0, "q_purity": 5.0, "quality": 3.83, "c_inflow5d": 5.0, "c_north": 5.0, "c_margin": 1.03, "c_inst": 5.0, "capital": 4.01, "t_trend": 5.0, "t_vp": 2.41, "t_rsi": 5.0, "technical": 4.14, "n_policy": 5.0, "n_consensus": 1.38, "n_sentiment": 5.0, "news": 3.79, "total": 3.94, "grade": "谨慎规避", "rank": 30}];
+
+function switchTab(name, e) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (e && e.target) e.target.classList.add('active');
+}
+
+function showDetail(idx) {
+  const s = items[idx];
+  const gc = {"优质配置":"#27ae60","中性偏多":"#2980b9","均衡观望":"#f39c12","谨慎规避":"#e67e22","坚决规避":"#e74c3c"}[s.grade]||"#999";
+  const ge = {"优质配置":"🟢","中性偏多":"🔵","均衡观望":"🟡","谨慎规避":"🟠","坚决规避":"🔴"}[s.grade]||"⚪";
+  let h = '<button class="modal-close" onclick="closeModal(event)">✕</button>';
+  h += '<h3>' + s.name + '</h3>';
+  h += '<div class="subtitle">' + s.code + ' | ' + s.sector + '</div>';
+  h += '<div class="score-big" style="color:' + gc + '">' + s.total.toFixed(1) + ' <span style="font-size:16px">' + ge + ' ' + s.grade + '</span></div>';
+
+  h += '<div style="margin:12px 0">';
+  h += '<div class="item"><strong style="color:#27ae60">质量因子 ' + s.quality.toFixed(1) + '/10</strong> — PEG代理:' + s.q_peg.toFixed(1) + ' | ROE代理:' + s.q_roe.toFixed(1) + ' | 增速代理:' + s.q_profit.toFixed(1) + ' | 纯度代理:' + s.q_purity.toFixed(1) + '</div>';
+  h += '<div class="item"><strong style="color:#8e44ad">资金面因子 ' + s.capital.toFixed(1) + '/10</strong> — 主力:' + s.c_inflow5d.toFixed(1) + ' | 北向代理:' + s.c_north.toFixed(1) + ' | 融资代理:' + s.c_margin.toFixed(1) + ' | 机构代理:' + s.c_inst.toFixed(1) + '</div>';
+  h += '<div class="item"><strong style="color:#2980b9">技术面因子 ' + s.technical.toFixed(1) + '/10</strong> — 趋势:' + s.t_trend.toFixed(1) + ' | 量价:' + s.t_vp.toFixed(1) + ' | RSI:' + s.t_rsi.toFixed(1) + '</div>';
+  h += '<div class="item"><strong style="color:#f39c12">消息面因子 ' + s.news.toFixed(1) + '/10</strong> — 景气:' + s.n_policy.toFixed(1) + ' | 预期:' + s.n_consensus.toFixed(1) + ' | 舆情:' + s.n_sentiment.toFixed(1) + '</div>';
+  h += '</div>';
+
+  h += '<div style="margin-top:10px;font-size:11px;color:#888;border-top:1px solid #eee;padding-top:10px">';
+  h += 'PE:' + (s.pe||'-') + ' | PB:' + (s.pb||'-') + ' | PS:' + (s.ps||'-') + ' | 股息率:' + (s.div?s.div.toFixed(2)+'%':'-') + '<br>';
+  h += '5日:' + s.chg5.toFixed(2) + '% | 20日:' + s.chg20.toFixed(2) + '% | 60日:' + s.chg60.toFixed(2) + '%<br>';
+  h += '量比:' + s.volume_ratio.toFixed(2) + ' | 振幅:' + s.swing.toFixed(2) + '%<br>';
+  const flowYi = s.etf_flow_yuan / 1e8;
+  h += 'ETF申赎:' + (flowYi>=0?'+':'') + flowYi.toFixed(2) + '亿 | 份额变化:' + s.shares_chg_ratio.toFixed(2) + '%';
+  h += '</div>';
+
+  document.getElementById('modalContent').innerHTML = h;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay') || e.target.classList.contains('modal-close')) {
+    document.getElementById('modalOverlay').classList.remove('show');
+  }
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { document.getElementById('modalOverlay').classList.remove('show'); }
+});
+</script>
+</body></html>
