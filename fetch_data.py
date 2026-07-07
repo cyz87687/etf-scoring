@@ -273,18 +273,22 @@ def compute_technicals(rows):
 def fetch_tencent_klines(tx_codes):
     """获取日K线并计算技术指标；返回 (klines, quotes)。
 
-    - 腾讯对 web.ifzq.gtimg.cn 的 K 线接口有突发额度（约 9 个/窗口），超限后返回
-      200 但空/none_match。因此这里用「较大基础间隔 + 空响应递增退避重试」：
-      基础间隔规避突发，命中限流时退避等待窗口解除后再取，确保覆盖率。
+    - 腾讯对 web.ifzq.gtimg.cn 的 K 线接口有单 IP 额度（约 9 个/窗口），超限后返回
+      200 但空/none_match。因此采用「分组 + 组间长冷却」错峰：每组最多 _KL_GROUP
+      个请求，组间冷却 _KL_COOLDOWN 秒等待额度窗口重置，从而把 30 个指数全量抓取。
+    - 单码仍带空响应递增退避重试，应对组内瞬时抖动。
     - cs 前缀的中证指数同样适用。
     - K线响应自带 qt 行情节点（与 qt.gtimg.cn 同源同格式），一并解析为
       指数行情，省去一次独立的指数行情请求，降低整体请求量。
     """
     out = {}
     qout = {}
-    _KL_GAP = 5.0                      # 指数间基础间隔（秒），规避突发额度
-    _KL_BACKOFF = [6, 12, 20, 35, 60]  # 空响应(疑似限流)时递增退避（秒）
-    for code in tx_codes:
+    _KL_GAP = 3.0                       # 指数间基础间隔（秒）
+    _KL_BACKOFF = [5, 10, 20]           # 空响应(疑似限流)时递增退避（秒）
+    _KL_GROUP = 8                       # 每组请求数，规避腾讯单IP K线额度
+    _KL_COOLDOWN = 120                  # 组间冷却（秒），等待额度窗口重置
+    n = len(tx_codes)
+    for i, code in enumerate(tx_codes):
         node = None
         for attempt in range(1 + len(_KL_BACKOFF)):
             # 基础间隔（与全局 _TX_GAP 取较大者，叠加生效）
@@ -317,7 +321,11 @@ def fetch_tencent_klines(tx_codes):
                 "volume_ratio": float(qt[49]) if len(qt) > 49 and qt[49] else 0,
                 "pe_ratio": float(qt[39]) if qt[39] and float(qt[39]) > 0 else None,
             }
-    print(f"  腾讯K线技术指标: {sum(1 for v in out.values() if v)}/{len(tx_codes)}")
+        # 每组末尾冷却，规避腾讯单IP K线额度
+        if (i + 1) % _KL_GROUP == 0 and (i + 1) < n:
+            print(f"    K线分组冷却 {_KL_COOLDOWN}s ({i+1}/{n})")
+            time.sleep(_KL_COOLDOWN)
+    print(f"  腾讯K线技术指标: {sum(1 for v in out.values() if v)}/{n}")
     return out, qout
 
 
