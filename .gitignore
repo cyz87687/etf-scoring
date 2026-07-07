@@ -1,16 +1,5 @@
-# Data files (generated at runtime)
-/tmp/
-*.pyc
 __pycache__/
-.workbuddy/
-
-# Old version outputs (keep only latest)
-index_scoring_report.html
-index_scoring_report_v2.html
-index_scoring_report_v4.html
-index_v2_results.json
-v3_data.json
-v4_data.json
-
-# OS files
+*.pyc
+*.pyo
+/tmp/
 .DS_Store

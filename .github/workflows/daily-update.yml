@@ -1,38 +1,64 @@
-name: Daily ETF Scoring Update
+name: 指数四维量化评分 · 每日更新
 
 on:
   schedule:
-    # 每日北京时间15:30 (UTC 07:30)
-    - cron: '30 7 * * 1-5'
-  workflow_dispatch: # 支持手动触发
+    # 每个交易日 15:30（北京时间）= UTC 07:30，周一至周五
+    - cron: "30 7 * * 1-5"
+  workflow_dispatch: {}        # 支持在 Actions 页面手动触发
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  update:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: 检出仓库
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: 配置 Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install dependencies
+      - name: 安装依赖
         run: |
+          python -m pip install --upgrade pip
           pip install pandas openpyxl requests
 
-      - name: Run scoring model
-        run: |
-          python build_v4.py --api
+      - name: 运行评分模型（纯 API 模式）
+        run: python build_v4.py --api
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: 校验产物
+        run: |
+          test -f index_v5.html && test -f v5_data.json || (echo "产物缺失" && exit 1)
+          echo "HTML 大小: $(wc -c < index_v5.html) 字节"
+
+      - name: 准备 Pages 产物
+        run: |
+          mkdir -p _site
+          cp index_v5.html v5_data.json _site/
+          # 一并携带评分体系文档，便于阅读
+          cp "指数四维精简量化评分体系.md" _site/ 2>/dev/null || true
+
+      - name: 上传 Pages 产物
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
-          publish_branch: gh-pages
-          force_orphan: true
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
