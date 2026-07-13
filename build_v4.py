@@ -13,6 +13,7 @@ V6 指数四维精简量化评分体系 (重构版)
 import json
 import math
 import os
+import re
 import sys
 from datetime import datetime
 import pandas as pd
@@ -289,6 +290,7 @@ for idx in INDICES:
     items.append({
         "name": name, "code": code, "wcode": wcode, "etf_code": etf_code,
         "etf_name": e.get("name", ""),
+        "close": q.get("close"), "change_pct": q.get("change_pct", 0),  # 收盘价 / 日涨跌幅
         "pe": pe, "pb": pb, "ps": ps, "div": div, "pct120": pct120,
         "chg5": chg5, "chg20": chg20, "chg60": chg60, "chg_ytd": chg_ytd, "chg250": chg250,
         "volume_ratio": volume_ratio, "swing": swing, "mom60": mom60, "rsi14": rsi14,
@@ -297,9 +299,76 @@ for idx in INDICES:
         "shares_chg_ratio": shares_chg, "sec_chg": sec_chg, "sec_inflow_5d": sec_inflow_5d,
         "news_count": news_count, "sector": sector, "has_kline": q.get("has_kline", False),
         "has_valuation": q.get("has_valuation", False),
+        # 估值代理标记: 缺失时是否借用"名称相近指数"(见 proxy_missing)
+        "pe_proxy": False, "pb_proxy": False, "ps_proxy": False, "div_proxy": False,
     })
 
 N = len(items)
+
+# ============================================================
+# 1.5 数据不足兜底: 名称相近指数借用（近似估值）
+# ============================================================
+def _bigrams(s):
+    """中文名二元组集合，用于名称相似度(Jaccard)计算"""
+    s = re.sub(r'[^一-龥]', '', s)
+    return set(s[i:i + 2] for i in range(len(s) - 1)) if len(s) > 1 else {s}
+
+
+SIM_THRESHOLD = 0.18
+def proxy_missing(items):
+    """估值缺失时，从名称相似度最高的同类指数借用 PE/PB/PS/股息率。
+
+    仅当自身真实值缺失、且存在相似度≥阈值的同概念指数时才借用，并打 proxy 标记，
+    UI 中标注"近似"。借用不改变"真实覆盖率"统计（real_data 在调用前已快照）。
+    """
+    sims = {}
+    for a in items:
+        bg_a = _bigrams(a["name"])
+        cands = []
+        for b in items:
+            if b is a:
+                continue
+            bg_b = _bigrams(b["name"])
+            if not bg_a or not bg_b:
+                continue
+            j = len(bg_a & bg_b) / len(bg_a | bg_b)
+            if j >= SIM_THRESHOLD:
+                cands.append((j, b))
+        cands.sort(key=lambda x: x[0], reverse=True)
+        sims[id(a)] = cands
+    fields = [("pe", "pe_proxy"), ("pb", "pb_proxy"), ("ps", "ps_proxy"), ("div", "div_proxy")]
+    for it in items:
+        for fld, flag in fields:
+            if it[fld] is not None:
+                continue
+            for _, other in sims[id(it)]:
+                if other[fld] is not None:
+                    it[fld] = other[fld]
+                    it[flag] = True
+                    break
+
+
+# 真实覆盖率快照（proxy 借用前，保证溯源诚实）
+real_data = {
+    "PE(质量)": sum(1 for it in items if it["pe"] is not None),
+    "PB(质量)": sum(1 for it in items if it["pb"] is not None),
+    "PS(质量)": sum(1 for it in items if it["ps"] is not None),
+    "股息率(质量)": sum(1 for it in items if it["div"] is not None),
+    "120日价格分位(质量)": sum(1 for it in items if it["pct120"] is not None),
+    "60日动量(技术)": sum(1 for it in items if it["mom60"] is not None),
+    "RSI14(技术)": sum(1 for it in items if it["rsi14"] is not None),
+    "年化波动率(技术)": sum(1 for it in items if it["vol20"] is not None),
+    "10日量价比(技术)": sum(1 for it in items if it["vp10"] is not None),
+    "指数换手率(资金)": sum(1 for it in items if it["idx_turnover"] > 0),
+    "ETF资金流(资金)": sum(1 for it in items if it["etf_flow_yuan"] != 0),
+    "ETF份额变化(资金)": sum(1 for it in items if it["shares_chg_ratio"] != 0),
+    "板块涨跌(消息)": sum(1 for it in items if it["sec_chg"] != 0),
+    "ETF涨跌(消息)": sum(1 for it in items if it["etf_chg"] != 0),
+    "新闻关注(消息)": sum(1 for it in items if it["news_count"] > 0),
+}
+proxy_missing(items)
+_pn = sum(1 for it in items if it["pe_proxy"] or it["pb_proxy"] or it["ps_proxy"] or it["div_proxy"])
+print(f"\n[近似估值] 借用名称相近指数填补估值缺口: {_pn}/{N} 个指数")
 
 # ---- 一、质量因子 (25%) ----
 # 估值信号: PE(真实)/PB/PS/股息率(真实) + 120日价格分位(通用代理)
@@ -407,24 +476,7 @@ items.sort(key=lambda x: -x["adj_total"])
 for i, it in enumerate(items):
     it["rank"] = i + 1
 
-# 覆盖率统计
-real_data = {
-    "PE(质量)": sum(1 for it in items if it["pe"] is not None),
-    "PB(质量)": sum(1 for it in items if it["pb"] is not None),
-    "PS(质量)": sum(1 for it in items if it["ps"] is not None),
-    "股息率(质量)": sum(1 for it in items if it["div"] is not None),
-    "120日价格分位(质量)": sum(1 for it in items if it["pct120"] is not None),
-    "60日动量(技术)": sum(1 for it in items if it["mom60"] is not None),
-    "RSI14(技术)": sum(1 for it in items if it["rsi14"] is not None),
-    "年化波动率(技术)": sum(1 for it in items if it["vol20"] is not None),
-    "10日量价比(技术)": sum(1 for it in items if it["vp10"] is not None),
-    "指数换手率(资金)": sum(1 for it in items if it["idx_turnover"] > 0),
-    "ETF资金流(资金)": sum(1 for it in items if it["etf_flow_yuan"] != 0),
-    "ETF份额变化(资金)": sum(1 for it in items if it["shares_chg_ratio"] != 0),
-    "板块涨跌(消息)": sum(1 for it in items if it["sec_chg"] != 0),
-    "ETF涨跌(消息)": sum(1 for it in items if it["etf_chg"] != 0),
-    "新闻关注(消息)": sum(1 for it in items if it["news_count"] > 0),
-}
+# 覆盖率统计（real_data 已在 proxy 前快照，保持溯源诚实）
 print(f"\n数据覆盖率 (有真实数据 / {N} 指数):")
 for k, v in real_data.items():
     print(f"  {k}: {v}/{N}")

@@ -54,6 +54,7 @@ EM_H = {
 # 单指数行情字段默认值
 def _default_quote():
     return {
+        "close": None,                    # 收盘价（指数点位/价格），来自K线或行情
         "change_pct": 0, "turnover_rate": 0, "volume_ratio": 0, "range_pct": 0,
         "pe_ratio": None, "pb_ratio": None, "ps_ttm": None, "dividend_yield": None,
         "chg_5d": 0, "chg_20d": 0, "chg_60d": 0, "chg_ytd": 0, "chg_250d": 0,
@@ -198,6 +199,7 @@ def fetch_tencent_quotes(tx_codes, is_etf=False):
                 }
             else:
                 res[key] = {
+                    "close": float(parts[3]) if parts[3] else 0,   # 指数点位/收盘价
                     "change_pct": float(parts[32]) if parts[32] else 0,
                     "turnover_rate": float(parts[38]) if parts[38] else 0,
                     "volume_ratio": float(parts[49]) if len(parts) > 49 and parts[49] else 0,
@@ -262,6 +264,7 @@ def compute_technicals(rows):
     vp10 = (up / dn) if dn > 0 else (10.0 if up > 0 else 1.0)
 
     return {
+        "close": round(cur, 4),          # 最新收盘价（指数点位）
         "chg_5d": chg5, "chg_20d": chg20, "chg_60d": chg60,
         "chg_ytd": chg_ytd, "chg_250d": chg250,
         "rsi14": round(rsi14, 2), "vol20": round(vol20, 2),
@@ -316,6 +319,7 @@ def fetch_tencent_klines(tx_codes):
         qt = (node or {}).get("qt", {}).get(code)
         if qt and len(qt) > 40 and qt[1]:
             qout[code] = {
+                "close": float(qt[3]) if qt[3] else 0,
                 "change_pct": float(qt[32]) if qt[32] else 0,
                 "turnover_rate": float(qt[38]) if qt[38] else 0,
                 "volume_ratio": float(qt[49]) if len(qt) > 49 and qt[49] else 0,
@@ -446,6 +450,8 @@ def fetch_all(indices, etf_map, sector_map=None, ext_klines=None):
             wcode = idx["wcode"]
             if rec.get("change_pct") is not None:
                 quote[wcode]["change_pct"] = rec.get("change_pct", 0)
+            if rec.get("close") is not None:
+                quote[wcode]["close"] = rec["close"]
             if rec.get("turnover_rate"):
                 quote[wcode]["turnover_rate"] = rec.get("turnover_rate", 0)
             if rec.get("volume_ratio"):
@@ -472,6 +478,8 @@ def fetch_all(indices, etf_map, sector_map=None, ext_klines=None):
             if q.get("pe_ratio") and not quote[wcode]["pe_ratio"]:
                 quote[wcode]["pe_ratio"] = q["pe_ratio"]
                 quote[wcode]["has_valuation"] = True
+            if q.get("close") is not None:
+                quote[wcode]["close"] = q["close"]
             k = tx_klines.get(tc)
             if k:
                 quote[wcode].update(k)

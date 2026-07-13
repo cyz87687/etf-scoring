@@ -30,13 +30,16 @@ def main():
     for tc, code in tx_to_code.items():
         rec = {}
         if klines.get(tc):
-            rec.update(klines[tc])  # 技术因子
+            rec.update(klines[tc])  # 技术因子（含 close）
         if quotes.get(tc):
             q = quotes[tc]
             rec["change_pct"] = q.get("change_pct", 0)
             rec["turnover_rate"] = q.get("turnover_rate", 0)
             rec["volume_ratio"] = q.get("volume_ratio", 0)
             rec["pe_ratio"] = q.get("pe_ratio")
+            # 行情收盘价优先于 K线收盘价（K线可能滞后一日）
+            if q.get("close") is not None:
+                rec["close"] = q["close"]
         if rec:
             out[code] = rec
     json.dump(out, open(out_file, "w", encoding="utf-8"), ensure_ascii=False)

@@ -80,7 +80,9 @@ tr:hover { background:#f8faff; }
 .grade-neutral{background:linear-gradient(135deg,#f39c12,#f1c40f);} .grade-cautious{background:linear-gradient(135deg,#e67e22,#f39c12);}
 .grade-avoid{background:linear-gradient(135deg,#e74c3c,#c0392b);}
 .red{color:#e74c3c;} .green{color:#27ae60;} .name-cell{text-align:left;font-weight:600;white-space:nowrap;}
-.code-cell{font-size:10px;color:#999;} .reason{font-size:10px;color:#888;text-align:left;max-width:210px;white-space:normal;line-height:1.4;}
+.code-sub{font-size:10px;color:#999;font-weight:400;margin-top:2px;line-height:1.2;}
+.proxy-tag{display:inline-block;font-size:9px;color:#b8860b;background:#fff3cd;border:1px solid #ffe08a;border-radius:4px;padding:0 3px;margin-left:3px;vertical-align:middle;font-weight:600;}
+.reason{font-size:10px;color:#888;text-align:left;max-width:210px;white-space:normal;line-height:1.4;}
 .conf{display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;}
 .conf-high{background:#d4edda;color:#155724;} .conf-mid{background:#fff3cd;color:#856404;} .conf-low{background:#f8d7da;color:#721c24;}
 .src-tag{display:inline-block;padding:1px 6px;border-radius:6px;font-size:9px;font-weight:600;}
@@ -136,7 +138,7 @@ TPL = """<!DOCTYPE html>
   <div class="summary-card"><div class="label">平均数据置信度</div><div class="value">__AVG_CONF__</div><div class="sub">高≥60% 中≥35%</div></div>
 </div>
 <div class="table-container"><table><thead><tr>
-  <th>#</th><th>指数名称</th><th>代码</th><th>质量<div style="font-size:9px;color:#27ae60">25%</div></th>
+  <th>#</th><th>指数</th><th>质量<div style="font-size:9px;color:#27ae60">25%</div></th>
   <th>资金面<div style="font-size:9px;color:#8e44ad">25%</div></th><th>技术面<div style="font-size:9px;color:#2980b9">25%</div></th>
   <th>消息面<div style="font-size:9px;color:#f39c12">25%</div></th><th>总分</th><th>评级</th><th>置信度</th><th>核心理由</th>
 </tr></thead><tbody>__ROWS__</tbody></table>
@@ -152,7 +154,7 @@ TPL = """<!DOCTYPE html>
   <tr><th></th><th></th><th>PE</th><th>PB</th><th>PS</th><th>股息</th><th>价格分位</th>
   <th>主力</th><th>北向代理</th><th>融资代理</th><th>机构代理</th>
   <th>趋势</th><th>量价</th><th>RSI</th><th>波动率</th><th>景气</th><th>预期</th><th>舆情</th></tr></thead><tbody>__FACTOR_ROWS__</tbody></table></div>
-<div class="table-container"><table><thead><tr><th>#</th><th>指数</th><th>PE</th><th>PB</th><th>PS</th><th>股息%</th>
+<div class="table-container"><table><thead><tr><th>#</th><th>指数</th><th>收盘</th><th>日涨跌%</th><th>PE</th><th>PB</th><th>PS</th><th>股息%</th>
   <th>120日分位</th><th>60日动量%</th><th>RSI</th><th>年化波动%</th><th>量价比</th><th>换手%</th><th>ETF净流入亿</th><th>份额变%</th></tr></thead><tbody>__RAW_ROWS__</tbody></table></div>
 <div class="note">子因子评分=样本内百分位/10（缺失因子不参与均值计算）。价格分位=收盘价在近120日区间的位置，越低越便宜，作为通用估值位置代理。</div>
 </div>
@@ -172,6 +174,7 @@ TPL = """<!DOCTYPE html>
 <h4 style="color:#721c24">⚠️ 数据局限说明</h4><ul>
   <li><strong>CSI/港股指数</strong>: 免费API（腾讯/新浪）对中证、港股通类指数覆盖有限，这类指数技术面与估值可能缺失→置信度低，评分仅供参考</li>
   <li><strong>PB/PS/股息率</strong>: 依赖东方财富，沙箱/部分地区可能不可达；不可达时由"120日价格分位"代理估值位置</li>
+  <li><strong>估值近似</strong>: 当某指数 PE/PB/PS/股息率缺失且东财不可达时，自动借用"名称相近指数"(如 港股创新药↔CS创新药)的同类估值，弹窗与原始表以"≈/近似"标注，仅供参考</li>
   <li><strong>ETF资金流/份额</strong>: 依赖东方财富ETF资金流向，缺失时该子因子按覆盖度降权</li>
   <li><strong>横截面相对排名</strong>: 评分反映当前样本内相对强弱，非历史绝对估值百分位</li>
 </ul></div>
@@ -226,7 +229,8 @@ h+='<div class="item"><strong style="color:#8e44ad">资金面 '+s.capital.toFixe
 h+='<div class="item"><strong style="color:#2980b9">技术面 '+s.technical.toFixed(1)+'/10</strong>(覆盖'+Math.round(s.t_cov*100)+'%) — 趋势:'+s.t_trend.toFixed(1)+' 量价:'+s.t_vp.toFixed(1)+' RSI:'+s.t_rsi.toFixed(1)+' 波动:'+s.t_vol.toFixed(1)+'</div>';
 h+='<div class="item"><strong style="color:#f39c12">消息面 '+s.news.toFixed(1)+'/10</strong>(覆盖'+Math.round(s.n_cov*100)+'%) — 景气:'+s.n_policy.toFixed(1)+' 预期:'+s.n_consensus.toFixed(1)+' 舆情:'+s.n_sentiment.toFixed(1)+'</div>';
 h+='</div><div style="margin-top:8px;font-size:11px;color:#888;border-top:1px solid #eee;padding-top:8px">';
-h+='PE:'+(s.pe||'-')+' | PB:'+(s.pb||'-')+' | PS:'+(s.ps||'-')+' | 股息:'+(s.div?s.div.toFixed(2)+'%':'-')+' | 120日分位:'+(s.pct120!=null?s.pct120.toFixed(0)+'%':'-')+'<br>';
+h+='收盘:'+(s.close!=null?s.close.toFixed(2):'-')+' | 日涨跌:'+(s.change_pct>=0?'+':'')+s.change_pct.toFixed(2)+'%<br>';
+h+='PE:'+(s.pe||'-')+(s.pe_proxy?'≈':'')+' | PB:'+(s.pb||'-')+(s.pb_proxy?'≈':'')+' | PS:'+(s.ps||'-')+(s.ps_proxy?'≈':'')+' | 股息:'+(s.div?s.div.toFixed(2)+'%':'-')+(s.div_proxy?'≈':'')+' | 120日分位:'+(s.pct120!=null?s.pct120.toFixed(0)+'%':'-')+'<br>';
 h+='60日动量:'+(s.mom60!=null?s.mom60.toFixed(1)+'%':'-')+' | RSI:'+(s.rsi14!=null?s.rsi14.toFixed(0):'-')+' | 年化波动:'+(s.vol20!=null?s.vol20.toFixed(1)+'%':'-')+' | 量价比:'+(s.vp10!=null?s.vp10.toFixed(2):'-')+'<br>';
 const fy=s.etf_flow_yuan/1e8;h+='ETF净流入:'+(s.etf_flow_yuan?(fy>=0?'+':'')+fy.toFixed(2)+'亿':'-')+' | 份额变:'+(s.shares_chg_ratio?s.shares_chg_ratio.toFixed(2)+'%':'-');
 h+='</div>';document.getElementById('modalContent').innerHTML=h;document.getElementById('modalOverlay').classList.add('show');}
@@ -251,7 +255,7 @@ def build_html(items, now, real_data, n):
         gc = grade_color(s["grade"])
         flag = f' <span class="src-tag src-X">数据不足</span>' if s["confidence"] < 0.35 else ""
         rows += f'''<tr>
-<td>{s['rank']}</td><td class="name-cell">{s['name']}{flag}</td><td class="code-cell">{s['code']}</td>
+<td>{s['rank']}</td><td class="name-cell">{s['name']}{flag}<div class="code-sub">{s['code']}</div></td>
 <td><span class="score-cell" onclick="showDetail({s['rank']-1})">{s['quality']:.1f}</span></td>
 <td><span class="score-cell" onclick="showDetail({s['rank']-1})">{s['capital']:.1f}</span></td>
 <td><span class="score-cell" onclick="showDetail({s['rank']-1})">{s['technical']:.1f}</span></td>
@@ -263,7 +267,7 @@ def build_html(items, now, real_data, n):
 
     frows = ""
     for s in items:
-        frows += f'''<tr><td>{s['rank']}</td><td class="name-cell">{s['name']}</td>
+        frows += f'''<tr><td>{s['rank']}</td><td class="name-cell">{s['name']}<div class="code-sub">{s['code']}</div></td>
 <td>{s['q_pe']:.1f}</td><td>{s['q_pb']:.1f}</td><td>{s['q_ps']:.1f}</td><td>{s['q_div']:.1f}</td><td>{s['q_pos']:.1f}</td>
 <td>{s['c_inflow5d']:.1f}</td><td>{s['c_north']:.1f}</td><td>{s['c_margin']:.1f}</td><td>{s['c_inst']:.1f}</td>
 <td>{s['t_trend']:.1f}</td><td>{s['t_vp']:.1f}</td><td>{s['t_rsi']:.1f}</td><td>{s['t_vol']:.1f}</td>
@@ -273,8 +277,17 @@ def build_html(items, now, real_data, n):
     for s in items:
         def fv(v, suf=""):
             return f'{v:.2f}{suf}' if isinstance(v, (int, float)) else '-'
-        rrows += f'''<tr><td>{s['rank']}</td><td class="name-cell">{s['name']}</td>
-<td>{fv(s['pe'])}</td><td>{fv(s['pb'])}</td><td>{fv(s['ps'])}</td><td>{fv(s['div'],'%')}</td>
+        cp = s['change_pct']
+        cp_str = (f"{cp:+.2f}%" if isinstance(cp, (int, float)) else '-')
+        cp_cls = 'red' if (isinstance(cp, (int, float)) and cp < 0) else 'green'
+        def val(v, proxy=False, suf=""):
+            base = f'{v:.2f}{suf}' if isinstance(v, (int, float)) else '-'
+            if proxy:
+                base += '<span class="proxy-tag">近似</span>'
+            return base
+        rrows += f'''<tr><td>{s['rank']}</td><td class="name-cell">{s['name']}<div class="code-sub">{s['code']}</div></td>
+<td>{fv(s['close'])}</td><td class="{cp_cls}">{cp_str}</td>
+<td>{val(s['pe'], s.get('pe_proxy'))}</td><td>{val(s['pb'], s.get('pb_proxy'))}</td><td>{val(s['ps'], s.get('ps_proxy'))}</td><td>{val(s['div'], s.get('div_proxy'),'%')}</td>
 <td>{fv(s['pct120'],'%')}</td><td>{fv(s['mom60'],'%')}</td><td>{fv(s['rsi14'])}</td>
 <td>{fv(s['vol20'],'%')}</td><td>{fv(s['vp10'])}</td><td>{fv(s['idx_turnover'],'%')}</td>
 <td>{fv(s['etf_flow_yuan']/1e8) if s['etf_flow_yuan'] else '-'}</td><td>{fv(s['shares_chg_ratio'],'%') if s['shares_chg_ratio'] else '-'}</td></tr>'''
