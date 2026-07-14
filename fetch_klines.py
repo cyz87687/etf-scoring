@@ -1,8 +1,10 @@
-"""CI matrix 分片抓取脚本：抓取一个分片（≤8 个指数）的腾讯日K线技术因子与行情。
+"""CI matrix 分片抓取脚本：抓取一个分片（默认 1 个指数）的日K线技术因子与行情。
 
-背景：腾讯 web.ifzq K线接口单 IP 硬上限约 9 个/运行。为在单次数据刷新中拿满 30 个
-指数的技术面，workflow 用 matrix 把指数切成多个分片，每个分片在不同 runner IP 上
-抓取（各自 ≤8，远低于上限），本脚本即单个分片的抓取器，输出 {原code: {技术因子+行情}}。
+背景：腾讯 web.ifzq K线接口对"同出口 IP 连续请求"仅首个能拿到K线数据(实测沙箱与
+GitHub 均恰好 9/30，且成功的 9 个全是 000/399/hk，中证 cs 基本不返回)。workflow 用
+matrix 把 30 个指数切成每片 1 个(CHUNK=1)，每个分片在独立 runner IP 上只发 1 个腾讯
+K线请求；腾讯未拿到的(尤其中证/被限量排除的主板)，再用新浪 K线兜底(新浪覆盖 000/399
+主板且无限流)。本脚本即单个分片的抓取器，输出 {原code: {技术因子+行情}}。
 """
 import sys
 import json
@@ -42,6 +44,13 @@ def main():
                 rec["close"] = q["close"]
         if rec:
             out[code] = rec
+    # 新浪兜底: 腾讯未拿到K线的(尤其中证/被限量排除的 000/399 主板)用新浪补
+    sina_missing = [c for c in chunk if c not in out]
+    if sina_missing:
+        sina = fetch_data.fetch_sina_klines(sina_missing)
+        for c, tech in sina.items():
+            if c not in out:
+                out[c] = dict(tech)
     json.dump(out, open(out_file, "w", encoding="utf-8"), ensure_ascii=False)
     print(f"  分片({len(chunk)}码) -> 命中 {len(out)} 条, 写入 {out_file}")
 

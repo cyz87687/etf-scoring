@@ -374,6 +374,49 @@ def fetch_em_klines(codes):
     return out
 
 
+def _sina_sym(code):
+    """新浪K线符号: 399→sz, 000/9开头(沪/中证)→sh, 恒生类→hk"""
+    if code.startswith("399"):
+        return "sz" + code
+    if code == "HSTECH":
+        return "hkHSTECH"
+    if code.startswith("H"):
+        return "hk" + code
+    return "sh" + code
+
+
+def fetch_sina_klines(codes):
+    """新浪日K线兜底(覆盖 000/399 主板指数; 中证/港股常返回空)。
+
+    腾讯 web.ifzq K线: ①对 000/399 主板指数限量 ~9/运行(同IP硬上限); ②对中证 cs
+    (930/931/932/H) 基本不返回数据。新浪对 000/399 主板覆盖良好且无限流，故用它补齐
+    主板指数的K线，把技术面覆盖从~9(仅腾讯)提升到"主板全量 + 腾讯拿到的hk"。
+    返回 {原指数code: compute_technicals结果(含 close / change_pct)}。
+    """
+    out = {}
+    for code in codes:
+        sym = _sina_sym(code)
+        url = (f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/"
+               f"CN_MarketData.getKLineData?symbol={sym}&scale=240&ma=no&datalen=320")
+        try:
+            r = requests.get(url, headers=SINA_H, timeout=10)
+            d = r.json()
+            if isinstance(d, list) and d:
+                rows = [[x["day"], float(x["open"]), float(x["close"]),
+                         float(x["high"]), float(x["low"]), float(x["volume"])] for x in d]
+                tech = compute_technicals(rows)
+                if tech:
+                    tech["change_pct"] = round(
+                        (float(d[-1]["close"]) / float(d[-2]["close"]) - 1) * 100, 2) if len(d) > 1 else 0
+                    out[code] = tech
+        except Exception:
+            pass
+        time.sleep(0.3)  # 礼貌间隔
+    print(f"  新浪K线兜底: {len(out)}/{len(codes)}")
+    return out
+
+
+
 # ============================================================
 # 4. 新浪行业板块 + 腾讯新闻
 # ============================================================
@@ -502,6 +545,23 @@ def fetch_all(indices, etf_map, sector_map=None, ext_klines=None):
             em_klines = fetch_em_klines([idx["code"] for idx in missing])
             code_to_wcode = {idx["code"]: idx["wcode"] for idx in missing}
             for code, k in em_klines.items():
+                wcode = code_to_wcode.get(code)
+                if wcode and k:
+                    quote[wcode].update(k)
+                    quote[wcode]["has_kline"] = True
+                    quote[wcode]["chg_5d"] = k["chg_5d"]
+                    quote[wcode]["chg_20d"] = k["chg_20d"]
+                    quote[wcode]["chg_60d"] = k["chg_60d"]
+                    quote[wcode]["chg_ytd"] = k["chg_ytd"]
+                    quote[wcode]["chg_250d"] = k["chg_250d"]
+
+        # --- 2.6 新浪 K线兜底：腾讯对 000/399 主板限量~9/运行且中证常空，
+        #         新浪覆盖 000/399 主板(无限流)，补回腾讯未拿到的主板指数K线 ---
+        sina_missing = [idx for idx in indices if not quote[idx["wcode"]]["has_kline"]]
+        if sina_missing:
+            sina_klines = fetch_sina_klines([idx["code"] for idx in sina_missing])
+            code_to_wcode = {idx["code"]: idx["wcode"] for idx in sina_missing}
+            for code, k in sina_klines.items():
                 wcode = code_to_wcode.get(code)
                 if wcode and k:
                     quote[wcode].update(k)
