@@ -44,12 +44,14 @@ def main():
                 rec["close"] = q["close"]
         if rec:
             out[code] = rec
-    # 新浪兜底: 腾讯未拿到K线的(尤其中证/被限量排除的 000/399 主板)用新浪补
-    sina_missing = [c for c in chunk if c not in out]
+    # 新浪兜底: 腾讯常返回"有行情但无K线"的空壳(rec 有 change_pct 但无 rsi14),
+    # 此时用新浪补全真实K线(新浪覆盖 000/399 主板, 无限流)。注意: 只要腾讯给了
+    # 行情节点 out[code] 就非空, 故必须以"缺 rsi14(无K线技术因子)"判定, 而非"code 不在 out"。
+    sina_missing = [c for c in chunk if out.get(c, {}).get("rsi14") is None]
     if sina_missing:
         sina = fetch_data.fetch_sina_klines(sina_missing)
         for c, tech in sina.items():
-            if c not in out:
+            if out.get(c, {}).get("rsi14") is None:
                 out[c] = dict(tech)
     json.dump(out, open(out_file, "w", encoding="utf-8"), ensure_ascii=False)
     print(f"  分片({len(chunk)}码) -> 命中 {len(out)} 条, 写入 {out_file}")
