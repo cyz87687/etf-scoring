@@ -303,7 +303,11 @@ def fetch_tencent_klines(tx_codes):
             if ok:
                 try:
                     node = json.loads(text).get("data", {}).get(code, {})
-                    if node:
+                    kl = (node or {}).get("qfqday") or (node or {}).get("day") or []
+                    # 关键: 必须真正拿到K线数据才算成功。被限流时响应常带空 node
+                    # (或仅有 qt 行情节点而无 K线数组)，此时不能 break，需退避后重试。
+                    if kl:
+                        out[code] = compute_technicals(kl)
                         break
                 except Exception:
                     node = None

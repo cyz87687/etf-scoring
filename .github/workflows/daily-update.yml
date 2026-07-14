@@ -35,7 +35,10 @@ jobs:
           import json, os, pandas as pd
           df = pd.read_excel("指数数据.xlsx")
           codes = [str(c).split(".")[0].strip() for c in df["证券代码"].tolist()]
-          CHUNK = 4
+          # 每分片 1 个指数: 腾讯 web.ifzq K线接口对"同 IP 连续请求"仅首个能拿到K线数据，
+          # 后续被限流(返回空 node)。拆成 1/片 → 每片在独立 runner IP 上只发 1 个请求，
+          # 首请求即成功，从而把 30 个指数的真实K线全部拿满。
+          CHUNK = 1
           chunks = [codes[i:i+CHUNK] for i in range(0, len(codes), CHUNK)]
           os.makedirs("chunks", exist_ok=True)
           for i, ch in enumerate(chunks):
