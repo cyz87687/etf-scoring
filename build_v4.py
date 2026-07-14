@@ -301,6 +301,7 @@ for idx in INDICES:
         "has_valuation": q.get("has_valuation", False),
         # 估值代理标记: 缺失时是否借用"名称相近指数"(见 proxy_missing)
         "pe_proxy": False, "pb_proxy": False, "ps_proxy": False, "div_proxy": False,
+        "tech_proxy": False,  # 技术面缺失时是否借用名称相近指数(有真实K线者)
     })
 
 N = len(items)
@@ -315,12 +316,8 @@ def _bigrams(s):
 
 
 SIM_THRESHOLD = 0.18
-def proxy_missing(items):
-    """估值缺失时，从名称相似度最高的同类指数借用 PE/PB/PS/股息率。
-
-    仅当自身真实值缺失、且存在相似度≥阈值的同概念指数时才借用，并打 proxy 标记，
-    UI 中标注"近似"。借用不改变"真实覆盖率"统计（real_data 在调用前已快照）。
-    """
+def _compute_sims(items):
+    """名称相似度(Jaccard)候选: 返回 {id(item): [(sim, other), ...] 按相似度降序}"""
     sims = {}
     for a in items:
         bg_a = _bigrams(a["name"])
@@ -336,15 +333,36 @@ def proxy_missing(items):
                 cands.append((j, b))
         cands.sort(key=lambda x: x[0], reverse=True)
         sims[id(a)] = cands
-    fields = [("pe", "pe_proxy"), ("pb", "pb_proxy"), ("ps", "ps_proxy"), ("div", "div_proxy")]
+    return sims
+
+
+def proxy_missing(items, sims):
+    """数据不足兜底(借用"名称相近指数"):
+
+    - 估值: 自身 PE/PB/PS/股息率 缺失时，从最相似同类指数借用，打 pe/pb/ps/div_proxy。
+    - 技术面: 自身无真实K线(has_kline=False, 多为中证cs指数——腾讯/新浪均无免费K线源)
+      时，从最相似、且有真实K线的指数借用全部技术因子(RSI/动量/价格分位等)，打 tech_proxy。
+    仅借用、打标记；真实覆盖率(real_data 在调用前已快照)保持不变，溯源诚实。
+    """
+    val_fields = [("pe", "pe_proxy"), ("pb", "pb_proxy"), ("ps", "ps_proxy"), ("div", "div_proxy")]
+    tech_fields = ["rsi14", "vol20", "mom60", "pct120", "vp10", "swing",
+                   "chg5", "chg20", "chg60", "chg_ytd", "chg250"]
     for it in items:
-        for fld, flag in fields:
+        for fld, flag in val_fields:
             if it[fld] is not None:
                 continue
             for _, other in sims[id(it)]:
                 if other[fld] is not None:
                     it[fld] = other[fld]
                     it[flag] = True
+                    break
+        if not it["has_kline"]:
+            for _, other in sims[id(it)]:
+                if other["has_kline"]:
+                    for f in tech_fields:
+                        if other.get(f) is not None:
+                            it[f] = other[f]
+                    it["tech_proxy"] = True
                     break
 
 
@@ -366,9 +384,11 @@ real_data = {
     "ETF涨跌(消息)": sum(1 for it in items if it["etf_chg"] != 0),
     "新闻关注(消息)": sum(1 for it in items if it["news_count"] > 0),
 }
-proxy_missing(items)
+SIMS = _compute_sims(items)
+proxy_missing(items, SIMS)
 _pn = sum(1 for it in items if it["pe_proxy"] or it["pb_proxy"] or it["ps_proxy"] or it["div_proxy"])
-print(f"\n[近似估值] 借用名称相近指数填补估值缺口: {_pn}/{N} 个指数")
+_tn = sum(1 for it in items if it["tech_proxy"])
+print(f"\n[近似估值] 借用名称相近指数填补估值缺口: PE/PB/PS/股息 {_pn}/{N} 个, 技术面 {_tn}/{N} 个")
 
 # ---- 一、质量因子 (25%) ----
 # 估值信号: PE(真实)/PB/PS/股息率(真实) + 120日价格分位(通用代理)
