@@ -53,6 +53,15 @@ def main():
         for c, tech in sina.items():
             if out.get(c, {}).get("rsi14") is None:
                 out[c] = dict(tech)
+    # 跟踪 ETF K线兜底(高保真): 中证cs/缺数据港股指数, 腾讯新浪均无指数K线,
+    # 改用其跟踪ETF的K线(新浪无限流)作技术proxy。保留指数自身 close/change_pct。
+    etf_missing = [c for c in chunk if out.get(c, {}).get("rsi14") is None]
+    if etf_missing:
+        etf = fetch_data.fetch_etf_klines(etf_missing)
+        for c, tech in etf.items():
+            if out.get(c, {}).get("rsi14") is None:
+                rec = out.setdefault(c, {})
+                rec.update(tech)  # tech 已剔除 close, 不覆盖指数行情价
     json.dump(out, open(out_file, "w", encoding="utf-8"), ensure_ascii=False)
     print(f"  分片({len(chunk)}码) -> 命中 {len(out)} 条, 写入 {out_file}")
 

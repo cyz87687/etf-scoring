@@ -79,16 +79,8 @@ for _, r in df.iterrows():
     code = raw.split(".")[0].strip()
     INDICES.append({"code": code, "name": name, "wcode": to_wcode(raw)})
 
-# ETF 映射: 指数代码 → 跟踪ETF代码 (与 Excel 指数一一对应)
-ETF_MAP = {
-    "931787": "sh513120", "931151": "sh515790", "931743": "sh562590", "930598": "sh516780",
-    "399967": "sh512660", "931855": "sh512670", "930709": "sh513090", "931719": "sh561910",
-    "930902": "sh516000", "H30202": "sh515230", "399997": "sh512690", "931009": "sh516750",
-    "000949": "sh516810", "H11059": "sz159871", "931247": "sh562570", "000685": "sh588200",
-    "931239": "sh516800", "H30590": "sh562500", "932000": "sh563300", "000813": "sh516020",
-    "H30199": "sh561700", "930633": "sh516100", "931160": "sh515880", "930851": "sh516510",
-    "000928": "sz159930", "399998": "sh515220", "930901": "sz159869", "HSTECH": "sh513180",
-}
+# ETF 映射: 指数代码 → 跟踪ETF代码 (单一来源, 见 fetch_data.ETF_MAP)
+ETF_MAP = fetch_data.ETF_MAP
 
 # 指数 → 行业板块 (用于板块涨跌/资金匹配)
 INDEX_TO_SECTOR = {
@@ -301,7 +293,12 @@ for idx in INDICES:
         "has_valuation": q.get("has_valuation", False),
         # 估值代理标记: 缺失时是否借用"名称相近指数"(见 proxy_missing)
         "pe_proxy": False, "pb_proxy": False, "ps_proxy": False, "div_proxy": False,
-        "tech_proxy": False,  # 技术面缺失时是否借用名称相近指数(有真实K线者)
+        # 技术面代理标记:
+        #   etf_proxy  = 用跟踪ETF的K线作高保真 proxy(中证cs/缺数据港股, 见 fetch_etf_klines)
+        #   tech_proxy = 退路: 用名称相近指数借用(仅当 ETF proxy 也缺失时触发)
+        "etf_proxy": q.get("etf_proxy", False),
+        "etf_proxy_code": q.get("etf_code", "") or "",
+        "tech_proxy": False,
     })
 
 N = len(items)
@@ -337,11 +334,15 @@ def _compute_sims(items):
 
 
 def proxy_missing(items, sims):
-    """数据不足兜底(借用"名称相近指数"):
+    """数据不足兜底(最后一道防线, 借用"名称相近指数"):
 
+    主兜底已在数据层完成 —— 中证cs/缺数据港股指数改用"跟踪ETF的K线"作高保真技术
+    proxy(etf_proxy, 见 fetch_data.fetch_etf_klines), 覆盖绝大多数原缺口。本函数仅作
+    退路:
     - 估值: 自身 PE/PB/PS/股息率 缺失时，从最相似同类指数借用，打 pe/pb/ps/div_proxy。
-    - 技术面: 自身无真实K线(has_kline=False, 多为中证cs指数——腾讯/新浪均无免费K线源)
-      时，从最相似、且有真实K线的指数借用全部技术因子(RSI/动量/价格分位等)，打 tech_proxy。
+    - 技术面: 仅当 etf_proxy 也未覆盖(has_kline 仍 False)时，从最相似、且有真实K线的
+      指数借用技术因子，且只补仍为 None 的字段(绝不覆盖 ETF proxy 已提供的真实值)，
+      打 tech_proxy。
     仅借用、打标记；真实覆盖率(real_data 在调用前已快照)保持不变，溯源诚实。
     """
     val_fields = [("pe", "pe_proxy"), ("pb", "pb_proxy"), ("ps", "ps_proxy"), ("div", "div_proxy")]
@@ -356,13 +357,17 @@ def proxy_missing(items, sims):
                     it[fld] = other[fld]
                     it[flag] = True
                     break
-        if not it["has_kline"]:
+        # 技术面退路: 仅 etf_proxy 也缺失时, 借用名称相近指数(只补 None 字段)
+        if not it["has_kline"] and not it.get("etf_proxy"):
             for _, other in sims[id(it)]:
                 if other["has_kline"]:
+                    filled = False
                     for f in tech_fields:
-                        if other.get(f) is not None:
+                        if it.get(f) is None and other.get(f) is not None:
                             it[f] = other[f]
-                    it["tech_proxy"] = True
+                            filled = True
+                    if filled:
+                        it["tech_proxy"] = True
                     break
 
 
@@ -387,8 +392,11 @@ real_data = {
 SIMS = _compute_sims(items)
 proxy_missing(items, SIMS)
 _pn = sum(1 for it in items if it["pe_proxy"] or it["pb_proxy"] or it["ps_proxy"] or it["div_proxy"])
+_en = sum(1 for it in items if it["etf_proxy"])
 _tn = sum(1 for it in items if it["tech_proxy"])
-print(f"\n[近似估值] 借用名称相近指数填补估值缺口: PE/PB/PS/股息 {_pn}/{N} 个, 技术面 {_tn}/{N} 个")
+print(f"\n[技术面补全] 跟踪ETF高保真proxy: {_en}/{N} 个; 名称相近指数退路proxy: {_tn}/{N} 个")
+if _pn:
+    print(f"[近似估值] 借用名称相近指数填补估值缺口: PE/PB/PS/股息 {_pn}/{N} 个")
 
 # ---- 一、质量因子 (25%) ----
 # 估值信号: PE(真实)/PB/PS/股息率(真实) + 120日价格分位(通用代理)

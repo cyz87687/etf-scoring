@@ -22,6 +22,21 @@ TENCENT_H = {
     'Referer': 'https://gu.qq.com/',
 }
 
+# 指数 → 跟踪ETF (与 build_v4 共用，单一来源避免不一致)。
+# 用途: 中证 cs(930/931/932) 与部分港股指数，腾讯/新浪均无指数 K 线源；
+# 其跟踪 ETF 在腾讯/新浪均有完整 K 线(无限流)，且 ETF 紧密跟踪指数(跟踪误差极小)，
+# 故用跟踪 ETF 的 K 线作指数技术因子的高保真 proxy (见 fetch_etf_klines)。
+ETF_MAP = {
+    "931787": "sh513120", "931151": "sh515790", "931743": "sh562590", "930598": "sh516780",
+    "399967": "sh512660", "931855": "sh512670", "930709": "sh513090", "931719": "sh561910",
+    "930902": "sh516000", "H30202": "sh515230", "399997": "sh512690", "931009": "sh516750",
+    "000949": "sh516810", "H11059": "sz159871", "931247": "sh562570", "000685": "sh588200",
+    "931239": "sh516800", "H30590": "sh562500", "932000": "sh563300", "000813": "sh516020",
+    "H30199": "sh561700", "930633": "sh516100", "931160": "sh515880", "930851": "sh516510",
+    "000928": "sz159930", "399998": "sh515220", "930901": "sz159869", "HSTECH": "sh513180",
+    "931494": "sh561100",  # 消费电子 -> 消费电子ETF富国
+}
+
 # 腾讯行情/ K线 共享同一 IP 限流预算；请求过快会被整体掐断。
 # 用全局节流器让每次腾讯请求前都间隔 _TX_GAP 秒，保证单次运行稳定落在阈值内。
 # 1.5s 已能规避绝大多数突发限流；指数 K 线另用更大间隔 + 退避重试（见 fetch_tencent_klines）。
@@ -416,6 +431,48 @@ def fetch_sina_klines(codes):
     return out
 
 
+def fetch_etf_klines(index_codes):
+    """跟踪 ETF K 线兜底(高保真技术 proxy) — 覆盖中证 cs / 缺数据港股指数。
+
+    腾讯 web.ifzq 对中证 cs(930/931/932) 指数根本不返回 K 线，新浪也无中证/港股指数
+    K 线；但每个指数都对应一只"跟踪 ETF"(见 ETF_MAP)，该 ETF 在腾讯/新浪均有完整 K 线
+    (无限流)，且 ETF 价格紧密跟踪指数(日度跟踪误差通常 <0.5%)。因此对拿不到指数 K 线的
+    指数，改用其跟踪 ETF 的日K线计算技术因子(RSI/动量/波动率/价格分位等)，作为指数的
+    高保真 proxy —— 远优于"名称相近指数"借用(仅语义近似)。
+
+    注意: ETF K 线只用于技术因子，指数的"收盘价/日涨跌"仍用指数自身行情(腾讯 qt 节点)，
+    故此处剔除 ETF 自身的 close，避免污染指数展示价。返回 {原指数code: 技术因子(含
+    etf_proxy=True, etf_code=跟踪ETF代码)}。
+    """
+    out = {}
+    for code in index_codes:
+        etf = ETF_MAP.get(code)
+        if not etf:
+            continue
+        # 新浪对 ETF 直接用 sh/sz 代码作 symbol(已实测 320 根可达, 无限流)
+        url = (f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/"
+               f"CN_MarketData.getKLineData?symbol={etf}&scale=240&ma=no&datalen=320")
+        try:
+            r = requests.get(url, headers=SINA_H, timeout=10)
+            d = r.json()
+            if isinstance(d, list) and d:
+                rows = [[x["day"], float(x["open"]), float(x["close"]),
+                         float(x["high"]), float(x["low"]), float(x["volume"])] for x in d]
+                tech = compute_technicals(rows)
+                if tech:
+                    tech["change_pct"] = round(
+                        (float(d[-1]["close"]) / float(d[-2]["close"]) - 1) * 100, 2) if len(d) > 1 else 0
+                    tech.pop("close", None)        # 保留指数自身行情价, 不覆盖
+                    tech["etf_proxy"] = True
+                    tech["etf_code"] = etf
+                    out[code] = tech
+        except Exception:
+            pass
+        time.sleep(0.3)  # 礼貌间隔
+    print(f"  ETF K线兜底: {len(out)}/{len(index_codes)}")
+    return out
+
+
 
 # ============================================================
 # 4. 新浪行业板块 + 腾讯新闻
@@ -509,7 +566,8 @@ def fetch_all(indices, etf_map, sector_map=None, ext_klines=None):
             if rec.get("rsi14") is not None or rec.get("pct120") is not None:
                 quote[wcode].update({k: rec[k] for k in
                     ("chg_5d", "chg_20d", "chg_60d", "chg_ytd", "chg_250d",
-                     "rsi14", "vol20", "mom60", "pct120", "swing", "vp10") if k in rec})
+                     "rsi14", "vol20", "mom60", "pct120", "swing", "vp10",
+                     "etf_proxy", "etf_code") if k in rec})
                 quote[wcode]["has_kline"] = True
     else:
         # 一次 K线请求同时拿到行情(qt节点)与技术指标，省去独立指数行情请求
@@ -571,6 +629,22 @@ def fetch_all(indices, etf_map, sector_map=None, ext_klines=None):
                     quote[wcode]["chg_60d"] = k["chg_60d"]
                     quote[wcode]["chg_ytd"] = k["chg_ytd"]
                     quote[wcode]["chg_250d"] = k["chg_250d"]
+
+        # --- 2.7 跟踪 ETF K线兜底(高保真): 中证cs/缺数据港股指数, 腾讯新浪均
+        #         无指数K线, 改用其跟踪ETF的K线(新浪无限流)作技术proxy ---
+        etf_missing = [idx for idx in indices if not quote[idx["wcode"]]["has_kline"]]
+        if etf_missing:
+            etf_klines = fetch_etf_klines([idx["code"] for idx in etf_missing])
+            code_to_wcode = {idx["code"]: idx["wcode"] for idx in etf_missing}
+            for code, k in etf_klines.items():
+                wcode = code_to_wcode.get(code)
+                if wcode and k:
+                    # 仅写入技术因子 + proxy 标记, 不动指数自身 close/change_pct
+                    quote[wcode].update({kk: k[kk] for kk in
+                        ("chg_5d", "chg_20d", "chg_60d", "chg_ytd", "chg_250d",
+                         "rsi14", "vol20", "mom60", "pct120", "swing", "vp10",
+                         "etf_proxy", "etf_code") if kk in k})
+                    quote[wcode]["has_kline"] = True
 
     # --- 3. ETF 行情 + 资金流 ---
     etf_codes = list(dict.fromkeys(etf_map.values()))  # 去重保序

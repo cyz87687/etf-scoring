@@ -82,6 +82,7 @@ tr:hover { background:#f8faff; }
 .red{color:#e74c3c;} .green{color:#27ae60;} .name-cell{text-align:left;font-weight:600;white-space:nowrap;}
 .code-sub{font-size:10px;color:#999;font-weight:400;margin-top:2px;line-height:1.2;}
 .proxy-tag{display:inline-block;font-size:9px;color:#b8860b;background:#fff3cd;border:1px solid #ffe08a;border-radius:4px;padding:0 3px;margin-left:3px;vertical-align:middle;font-weight:600;}
+.proxy-tag.etf{color:#1a7f37;background:#e8f5ec;border-color:#b7e2c4;}
 .reason{font-size:10px;color:#888;text-align:left;max-width:210px;white-space:normal;line-height:1.4;}
 .conf{display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;}
 .conf-high{background:#d4edda;color:#155724;} .conf-mid{background:#fff3cd;color:#856404;} .conf-low{background:#f8d7da;color:#721c24;}
@@ -175,7 +176,7 @@ TPL = """<!DOCTYPE html>
   <li><strong>CSI/港股指数</strong>: 免费API（腾讯/新浪）对中证、港股通类指数覆盖有限，这类指数技术面与估值可能缺失→置信度低，评分仅供参考</li>
   <li><strong>PB/PS/股息率</strong>: 依赖东方财富，沙箱/部分地区可能不可达；不可达时由"120日价格分位"代理估值位置</li>
   <li><strong>估值近似</strong>: 当某指数 PE/PB/PS/股息率缺失且东财不可达时，自动借用"名称相近指数"(如 港股创新药↔CS创新药)的同类估值，弹窗与原始表以"≈/近似"标注，仅供参考</li>
-  <li><strong>技术面近似</strong>: 中证 cs(930/931/932/H)指数腾讯/新浪均无常免费K线源(实测沙箱与CI均仅000/399/hk有K线)，其技术因子(RSI/动量/价格分位等)自动借用名称最相近、且有真实K线的指数，原始表标"≈技术"、弹窗标"≈技术(借用相似指数)"，仅供参考</li>
+  <li><strong>技术面近似(高保真)</strong>: 中证 cs(930/931/932/H)与部分港股指数，腾讯/新浪均无常免费指数K线源；但每只指数都有"跟踪ETF"(如 港股创新药↔513120)，ETF在腾讯/新浪均有完整K线且紧密跟踪指数(日度误差&lt;0.5%)。故技术因子(RSI/动量/价格分位/波动率等)优先用<strong>跟踪ETF的K线</strong>计算(原始表标绿色"≈技术(ETF)"、弹窗标"≈技术(ETF高保真)")，仅当ETF也缺失时才退路借用名称最相近指数(标"≈技术")，均仅供参考</li>
   <li><strong>ETF资金流/份额</strong>: 依赖东方财富ETF资金流向，缺失时该子因子按覆盖度降权</li>
   <li><strong>横截面相对排名</strong>: 评分反映当前样本内相对强弱，非历史绝对估值百分位</li>
 </ul></div>
@@ -232,7 +233,10 @@ h+='<div class="item"><strong style="color:#f39c12">消息面 '+s.news.toFixed(1
 h+='</div><div style="margin-top:8px;font-size:11px;color:#888;border-top:1px solid #eee;padding-top:8px">';
 h+='收盘:'+(s.close!=null?s.close.toFixed(2):'-')+' | 日涨跌:'+(s.change_pct>=0?'+':'')+s.change_pct.toFixed(2)+'%<br>';
 h+='PE:'+(s.pe||'-')+(s.pe_proxy?'≈':'')+' | PB:'+(s.pb||'-')+(s.pb_proxy?'≈':'')+' | PS:'+(s.ps||'-')+(s.ps_proxy?'≈':'')+' | 股息:'+(s.div?s.div.toFixed(2)+'%':'-')+(s.div_proxy?'≈':'')+' | 120日分位:'+(s.pct120!=null?s.pct120.toFixed(0)+'%':'-')+'<br>';
-h+='60日动量:'+(s.mom60!=null?s.mom60.toFixed(1)+'%':'-')+' | RSI:'+(s.rsi14!=null?s.rsi14.toFixed(0):'-')+' | 年化波动:'+(s.vol20!=null?s.vol20.toFixed(1)+'%':'-')+' | 量价比:'+(s.vp10!=null?s.vp10.toFixed(2):'-')+(s.tech_proxy?' <span style="color:#b8860b">≈技术(借用相似指数)</span>':'')+'<br>';
+h+='60日动量:'+(s.mom60!=null?s.mom60.toFixed(1)+'%':'-')+' | RSI:'+(s.rsi14!=null?s.rsi14.toFixed(0):'-')+' | 年化波动:'+(s.vol20!=null?s.vol20.toFixed(1)+'%':'-')+' | 量价比:'+(s.vp10!=null?s.vp10.toFixed(2):'-');
+if(s.etf_proxy){h+=' <span style="color:#1a7f37">≈技术(ETF高保真)</span>';}
+else if(s.tech_proxy){h+=' <span style="color:#b8860b">≈技术(借用相似指数)</span>';}
+h+='<br>';
 const fy=s.etf_flow_yuan/1e8;h+='ETF净流入:'+(s.etf_flow_yuan?(fy>=0?'+':'')+fy.toFixed(2)+'亿':'-')+' | 份额变:'+(s.shares_chg_ratio?s.shares_chg_ratio.toFixed(2)+'%':'-');
 h+='</div>';document.getElementById('modalContent').innerHTML=h;document.getElementById('modalOverlay').classList.add('show');}
 function closeModal(e){if(e.target===document.getElementById('modalOverlay')||e.target.classList.contains('modal-close')){document.getElementById('modalOverlay').classList.remove('show');}}
@@ -289,7 +293,7 @@ def build_html(items, now, real_data, n):
         rrows += f'''<tr><td>{s['rank']}</td><td class="name-cell">{s['name']}<div class="code-sub">{s['code']}</div></td>
 <td>{fv(s['close'])}</td><td class="{cp_cls}">{cp_str}</td>
 <td>{val(s['pe'], s.get('pe_proxy'))}</td><td>{val(s['pb'], s.get('pb_proxy'))}</td><td>{val(s['ps'], s.get('ps_proxy'))}</td><td>{val(s['div'], s.get('div_proxy'),'%')}</td>
-<td>{fv(s['pct120'],'%')}</td><td>{fv(s['mom60'],'%')}</td><td>{fv(s['rsi14'])}{('<span class="proxy-tag">≈技术</span>' if s.get('tech_proxy') else '')}</td>
+<td>{fv(s['pct120'],'%')}</td><td>{fv(s['mom60'],'%')}</td><td>{fv(s['rsi14'])}{('<span class="proxy-tag etf">≈技术(ETF)</span>' if s.get('etf_proxy') else ('<span class="proxy-tag">≈技术</span>' if s.get('tech_proxy') else ''))}</td>
 <td>{fv(s['vol20'],'%')}</td><td>{fv(s['vp10'])}</td><td>{fv(s['idx_turnover'],'%')}</td>
 <td>{fv(s['etf_flow_yuan']/1e8) if s['etf_flow_yuan'] else '-'}</td><td>{fv(s['shares_chg_ratio'],'%') if s['shares_chg_ratio'] else '-'}</td></tr>'''
 
